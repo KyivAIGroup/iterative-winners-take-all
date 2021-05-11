@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from numpy.testing import assert_array_equal
 
-from kwta import kWTA, kWTAi, overlap, cosine_similarity
+from kwta import kWTA, kWTAi, overlap, cosine_similarity, kWTA_different_k
 
 
 class TestKWTA(unittest.TestCase):
@@ -24,6 +24,16 @@ class TestKWTA(unittest.TestCase):
             y1d[:, i] = kWTA(xi, k=k)
         assert_array_equal(y_tensor, y1d)
 
+    def test_kwta_different_k(self):
+        np.random.seed(0)
+        n_samples = 20
+        k = 10
+        x = np.random.randint(low=0, high=100, size=(100, n_samples))
+        y1 = kWTA(x, k=k)
+        y2 = kWTA_different_k(x,
+                              ks=np.full(n_samples, fill_value=k, dtype=int))
+        assert_array_equal(y1, y2)
+
     def test_kwtai_tensor(self):
         np.random.seed(2)
         n_neurons, n_samples = 200, 10
@@ -40,6 +50,18 @@ class TestKWTA(unittest.TestCase):
             h1d[:, i], y1d[:, i] = kWTAi(y0=y0[:, i], h0=h0[:, i], w_hy=w_lat)
         assert_array_equal(h_tensor, h1d)
         assert_array_equal(y_tensor, y1d)
+
+    def test_kwtai_differs(self):
+        y0 = np.array([0, 1, 0, 0, 0])
+        h0 = np.array([0, 0, 1, 0, 0])
+        w_hy = [[0, 0, 0, 0, 1],
+                [1, 0, 1, 0, 0],
+                [0, 1, 0, 0, 0],
+                [1, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0]]
+        h, y = kWTAi(y0=y0, h0=h0, w_hy=w_hy)
+        y_kwta = kWTA(y0 - w_hy @ h0, k=1)
+        print(f"{y=}, {y_kwta=}")
 
 
 if __name__ == '__main__':

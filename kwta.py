@@ -13,10 +13,23 @@ def kWTA(x, k):
         return np.zeros_like(x)
     if x.ndim == 1:
         x = np.expand_dims(x, axis=1)
-    winners = np.argsort(x, axis=0)[-k:]
+    winners = np.argsort(x, axis=0)[-k:]  # (k, trials)
     sdr = np.zeros_like(x)
     sdr[winners, range(x.shape[1])] = 1
     return sdr.squeeze()
+
+
+def kWTA_different_k(x_tensor, ks):
+    # x_tensor is a (N, trials) tensor
+    assert x_tensor.shape[1] == len(ks)
+    argsort = np.argsort(x_tensor, axis=0)[::-1]
+    sdr = np.zeros_like(x_tensor)
+    for trial_id in range(x_tensor.shape[1]):
+        k = ks[trial_id]
+        winners = argsort[:k, trial_id]
+        sdr[winners, trial_id] = 1
+        assert (sdr[:, trial_id] == kWTA(x_tensor[:, trial_id], k=k)).all()
+    return sdr
 
 
 def kWTAi_doesnt_work(x, w_lat):
@@ -33,6 +46,13 @@ def overlap(x1, x2):
 
 def cosine_similarity(x1, x2):
     return x1.dot(x2) / (np.linalg.norm(x1) * np.linalg.norm(x2))
+
+
+def generate_k_active(n, k):
+    x = np.zeros(n, dtype=np.int32)
+    active = np.random.choice(n, size=k, replace=False)
+    x[active] = 1
+    return x
 
 
 def kWTAi(y0, h0, w_hy, w_yy=None, w_hh=None, w_yh=None):
@@ -62,6 +82,7 @@ def kWTAi(y0, h0, w_hy, w_yy=None, w_hh=None, w_yh=None):
         y = np.expand_dims(y, axis=1)
     empty_cols = ~(y.any(axis=0))
     if empty_cols.any():
+        # This is particularly wrong because y != y_kwta even when k=1
         warnings.warn("kWTAi resulted in a zero vector. "
                       "Activating one neuron manually.")
         y_kwta = kWTA(y0 - w_hy @ h0, k=1)

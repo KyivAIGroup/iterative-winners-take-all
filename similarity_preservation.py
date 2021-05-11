@@ -2,19 +2,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
 
-from kwta import kWTA, kWTAi, RESULTS_DIR
+from kwta import kWTA, kWTAi, RESULTS_DIR, generate_k_active, kWTA_different_k
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy = 0.1, 0.1, 0.1, 0.1
 N_REPEAT, N_SPLIT = 100, 10
 K_FIXED = int(0.1 * N_y)
-
-
-def generate_k_active(n, k):
-    x = np.zeros(n, dtype=np.int32)
-    active = np.random.choice(n, size=k, replace=False)
-    x[active] = 1
-    return x
 
 
 def generate_similar_input(x, n_split=N_SPLIT):
@@ -64,9 +57,8 @@ for experiment in trange(N_REPEAT):
     y_kwta_pre = w_xy @ x_similar - w_hy @ (w_xh @ x_similar)
     _, y_similar = kWTAi(y0=w_xy @ x_similar, h0=w_xh @ x_similar, w_hy=w_hy)
     y_kwta_fixed_k = kWTA(y_kwta_pre, k=K_FIXED)
-    y_kwta = [kWTA(y0_kwta_row, k=np.count_nonzero(yi))
-              for (y0_kwta_row, yi) in zip(y_kwta_pre, y_similar)]
-    y_kwta = np.vstack(y_kwta)
+    y_kwta = kWTA_different_k(y_kwta_pre,
+                              ks=np.count_nonzero(y_similar, axis=0))
 
     similarity_x = cosine_similarity(x_similar)  # same for all experiments
     stats['iwta'][experiment] = cosine_similarity(y_similar)
