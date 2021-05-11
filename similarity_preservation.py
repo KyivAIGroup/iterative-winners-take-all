@@ -6,47 +6,72 @@ from kwta import kWTA, kWTAi, update_weights, overlap
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy = 0.1, 0.1, 0.1, 0.1
-N_repeat, N_epoch = 10, 100
+N_REPEAT, N_SPLIT = 100, 10
 K_FIXED = int(0.1 * N_y)
-NUM_TO_LEARN = 5
 
 
-def generate_input(x, similarity):
-    # x = np.random.binomial(1, s_x, size=N_x)
-    idx_keep = x.nonzero()[0]
-    idx_keep = np.random.choice(idx_keep, size=int(similarity * len(idx_keep)),
-                                replace=False)
+def generate_k_active(n, k):
+    x = np.zeros(n, dtype=np.int32)
+    active = np.random.choice(n, size=k, replace=False)
+    x[active] = 1
+    return x
 
 
+def generate_similar_input(x, n_split=N_SPLIT):
+    # Generates n_split vectors with the same num. of active units.
+    # The similarity between the output tensor and input vector increases
+    #   with each column (from 0 to 1).
+    # 'x' is a (N,) vec
+    idx_pool = x.nonzero()[0]
+    no_overlap_idx = (x == 0).nonzero()[0]
+    k = len(idx_pool)
+    n_idx_take = np.linspace(0, k, num=n_split, dtype=int)
+    x_similar = np.zeros((x.shape[0], n_split), dtype=np.int32)
+    for i, size in enumerate(n_idx_take):
+        active = np.random.choice(idx_pool, size=size, replace=False)
+        active_no_overlap = np.random.choice(no_overlap_idx, size=k - size,
+                                             replace=False)
+        active = np.append(active, active_no_overlap)
+        x_similar[active, i] = 1
+    assert (x_similar[:, -1] == x).all()
+    assert (x_similar.sum(axis=0) == k).all()
+    return x_similar  # (N, n_split)
 
 
-stats = {mode: np.zeros((N_repeat, N_epoch), dtype=np.float32)
+def cosine_similarity(x_tensor):
+    x_orig = x_tensor[:, -1]  # the last column
+    norm = np.linalg.norm(x_tensor, axis=0)  # must be the same
+    similarity = np.divide(x_orig.dot(x_tensor),
+                           np.linalg.norm(x_orig) * norm,
+                           out=np.zeros(norm.shape),
+                           where=norm != 0)
+    return similarity
+
+
+stats = {mode: np.zeros((N_REPEAT, N_SPLIT), dtype=np.float32)
          for mode in ('kwta-fixed-k', 'kwta', 'iwta')}
 
-for experiment in trange(N_repeat):
-    x1 = np.random.binomial(1, s_x, size=N_x)
-    x2 = np.random.binomial(1, s_x, size=N_x)
+similarity_x = None
+
+for experiment in trange(N_REPEAT):
+    x = generate_k_active(n=N_x, k=10)
+    x_similar = generate_similar_input(x)
 
     w_xy = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
     w_xh = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
     w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
 
-    for iter_id in range(100):
-        h1, y1 = kWTAi(y0=w_xy @ x1, h0=w_xh @ x1, w_hy=w_hy)
-        h2, y2 = kWTAi(y0=w_xy @ x2, h0=w_xh @ x1, w_hy=w_hy)
-        stats['iwta'][experiment, iter_id] = overlap(y1, y2)
+    y_kwta_pre = w_xy @ x_similar - w_hy @ (w_xh @ x_similar)
+    _, y_similar = kWTAi(y0=w_xy @ x_similar, h0=w_xh @ x_similar, w_hy=w_hy)
+    y_kwta_fixed_k = kWTA(y_kwta_pre, k=K_FIXED)
+    y_kwta = [kWTA(y0_kwta_row, k=np.count_nonzero(yi))
+              for (y0_kwta_row, yi) in zip(y_kwta_pre, y_similar)]
+    y_kwta = np.vstack(y_kwta)
 
-        y1_kwta = w_xy @ x1 - w_hy @ (w_xh @ x1)
-        y2_kwta = w_xy @ x2 - w_hy @ (w_xh @ x2)
-        overlap_kwta_fixed_k = overlap(kWTA(y1_kwta, k=K_FIXED),
-                                       kWTA(y2_kwta, k=K_FIXED))
-        overlap_kwta = overlap(kWTA(y1_kwta, k=np.count_nonzero(y1)),
-                               kWTA(y2_kwta, k=np.count_nonzero(y2)))
-        stats['kwta-fixed-k'][experiment, iter_id] = overlap_kwta_fixed_k
-        stats['kwta'][experiment, iter_id] = overlap_kwta
-
-        update_weights(w_hy, x_pre=h1, x_post=y1, n_choose=NUM_TO_LEARN)
-        # update_weights(w_xy, x_pre=x1, x_post=y1, n_choose=1)
+    similarity_x = cosine_similarity(x_similar)  # same for all experiments
+    stats['iwta'][experiment] = cosine_similarity(y_similar)
+    stats['kwta'][experiment] = cosine_similarity(y_kwta)
+    stats['kwta-fixed-k'][experiment] = cosine_similarity(y_kwta_fixed_k)
 
 colormap = {
     'iwta': 'green',
@@ -55,15 +80,16 @@ colormap = {
 }
 
 fig, ax = plt.subplots()
+ax.set_aspect(1)
 
 for key in stats.keys():
     mean = stats[key].mean(axis=0)
     std = stats[key].std(axis=0)
-    ax.plot(range(N_epoch), mean, lw=2, label=key, color=colormap[key])
-    ax.fill_between(range(N_epoch), mean + std, mean - std,
+    ax.plot(similarity_x, mean, lw=2, label=key, color=colormap[key])
+    ax.fill_between(similarity_x, mean + std, mean - std,
                     facecolor=colormap[key], alpha=0.3)
-ax.set_title(f"Decorrelation. num_to_learn={NUM_TO_LEARN}")
+ax.set_title("Similarity preservation")
 ax.legend()
-ax.set_xlabel('iteration')
-ax.set_ylabel('overlap(y1, y2)')
+ax.set_xlabel('x similarity')
+ax.set_ylabel('y similarity')
 plt.show()

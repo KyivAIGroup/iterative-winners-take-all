@@ -26,12 +26,12 @@ for experiment in trange(N_repeat):
         h2, y2 = kWTAi(y0=w_xy @ x2, h0=w_xh @ x1, w_hy=w_hy)
         stats['iwta'][experiment, iter_id] = overlap(y1, y2)
 
-        y1_kwta = w_xy @ x1 - w_hy @ (w_xh @ x1)
-        y2_kwta = w_xy @ x2 - w_hy @ (w_xh @ x2)
-        overlap_kwta_fixed_k = overlap(kWTA(y1_kwta, k=K_FIXED),
-                                       kWTA(y2_kwta, k=K_FIXED))
-        overlap_kwta = overlap(kWTA(y1_kwta, k=np.count_nonzero(y1)),
-                               kWTA(y2_kwta, k=np.count_nonzero(y2)))
+        y1_kwta_pre = w_xy @ x1 - w_hy @ (w_xh @ x1)
+        y2_kwta_pre = w_xy @ x2 - w_hy @ (w_xh @ x2)
+        overlap_kwta_fixed_k = overlap(kWTA(y1_kwta_pre, k=K_FIXED),
+                                       kWTA(y2_kwta_pre, k=K_FIXED))
+        overlap_kwta = overlap(kWTA(y1_kwta_pre, k=np.count_nonzero(y1)),
+                               kWTA(y2_kwta_pre, k=np.count_nonzero(y2)))
         stats['kwta-fixed-k'][experiment, iter_id] = overlap_kwta_fixed_k
         stats['kwta'][experiment, iter_id] = overlap_kwta
 

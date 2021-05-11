@@ -3,10 +3,15 @@ import warnings
 
 
 def kWTA(x, k):
-    winners = np.argsort(x)[-k:]
+    # x is a (N,) vec or (N, trials) tensor
+    if k == 0:
+        return np.zeros_like(x)
+    if x.ndim == 1:
+        x = np.expand_dims(x, axis=1)
+    winners = np.argsort(x, axis=0)[-k:]
     sdr = np.zeros_like(x)
-    sdr[winners] = 1
-    return sdr
+    sdr[winners, range(x.shape[1])] = 1
+    return sdr.squeeze()
 
 
 def kWTAi_doesnt_work(x, w_lat):
@@ -47,11 +52,18 @@ def kWTAi(y0, h0, w_hy, w_yy=None, w_hh=None, w_yh=None):
         h |= z_h
         y |= z_y
 
-    if not y.any():
-        # TODO the same hack should be for 'h'
+    # TODO the same hack should be for 'h'
+    if y.ndim == 1:
+        y = np.expand_dims(y, axis=1)
+    empty_cols = ~(y.any(axis=0))
+    if empty_cols.any():
         warnings.warn("kWTAi resulted in a zero vector. "
                       "Activating one neuron manually.")
-        y = kWTA(y0 - w_hy @ h0, k=1)
+        y_kwta = kWTA(y0 - w_hy @ h0, k=1)
+        if y_kwta.ndim == 1:
+            y_kwta = np.expand_dims(y_kwta, axis=1)
+        y[:, empty_cols] = y_kwta[:, empty_cols]
+    y = y.squeeze()
 
     return h, y
 

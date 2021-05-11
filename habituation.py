@@ -31,10 +31,11 @@ fig, ax = plt.subplots()
 
 mean = stats.mean(axis=0)
 std = stats.std(axis=0)
-ax.plot(range(N_epoch), mean, lw=2, color='blue')
+ax.plot(range(N_epoch), mean, lw=2, color='blue', label='iwta')
 ax.fill_between(range(N_epoch), mean + std, mean - std,
                 facecolor='blue', alpha=0.3)
 ax.set_title(f"Habituation. num_to_learn={NUM_TO_LEARN}")
 ax.set_xlabel('iteration')
 ax.set_ylabel('overlap(y, y0)')
+ax.legend()
 plt.show()
