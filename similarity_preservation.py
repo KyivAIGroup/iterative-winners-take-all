@@ -5,10 +5,9 @@ from tqdm import trange
 from kwta import kWTA, kWTAi, RESULTS_DIR, generate_k_active, kWTA_different_k
 
 N_x, N_y, N_h = 100, 200, 200
-s_x, s_w_xy, s_w_xh, s_w_hy = 0.1, 0.1, 0.1, 0.1
+s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh = 0.1, 0.1, 0.1, 0.1, 0.05
 N_REPEAT, N_SPLIT = 100, 10
 K_FIXED = int(0.1 * N_y)
-
 
 def generate_similar_input(x, n_split=N_SPLIT):
     # Generates n_split vectors with the same num. of active units.
@@ -43,6 +42,7 @@ def cosine_similarity(x_tensor):
 
 stats = {mode: np.zeros((N_REPEAT, N_SPLIT), dtype=np.float32)
          for mode in ('kwta-fixed-k', 'kwta', 'iwta')}
+n_active = np.zeros((N_REPEAT, N_SPLIT), dtype=np.float32)
 
 similarity_x = None
 
@@ -53,17 +53,19 @@ for experiment in trange(N_REPEAT):
     w_xy = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
     w_xh = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
     w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
+    w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
 
     y_kwta_pre = w_xy @ x_similar - w_hy @ (w_xh @ x_similar)
-    _, y_similar = kWTAi(y0=w_xy @ x_similar, h0=w_xh @ x_similar, w_hy=w_hy)
+    _, y_similar = kWTAi(y0=w_xy @ x_similar, h0=w_xh @ x_similar, w_hy=w_hy, w_hh=w_hh)
     y_kwta_fixed_k = kWTA(y_kwta_pre, k=K_FIXED)
-    y_kwta = kWTA_different_k(y_kwta_pre,
-                              ks=np.count_nonzero(y_similar, axis=0))
+    n_active_batch = np.count_nonzero(y_similar, axis=0)
+    y_kwta = kWTA_different_k(y_kwta_pre, ks=n_active_batch)
 
     similarity_x = cosine_similarity(x_similar)  # same for all experiments
     stats['iwta'][experiment] = cosine_similarity(y_similar)
     stats['kwta'][experiment] = cosine_similarity(y_kwta)
     stats['kwta-fixed-k'][experiment] = cosine_similarity(y_kwta_fixed_k)
+    n_active[experiment] = n_active_batch
 
 colormap = {
     'iwta': 'green',
@@ -74,6 +76,8 @@ colormap = {
 fig, ax = plt.subplots()
 ax.set_aspect(1)
 
+n_active = n_active.mean(axis=0)
+print(f"{n_active=}")
 for key in stats.keys():
     mean = stats[key].mean(axis=0)
     std = stats[key].std(axis=0)
@@ -85,4 +89,4 @@ ax.legend()
 ax.set_xlabel('x similarity')
 ax.set_ylabel('y similarity')
 plt.savefig(RESULTS_DIR / "similarity_preservation.jpg")
-plt.show()
+# plt.show()

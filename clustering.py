@@ -6,7 +6,7 @@ from tqdm import trange
 from kwta import kWTAi, update_weights, RESULTS_DIR, kWTA, kWTA_different_k
 
 N_x, N_y, N_h = 100, 200, 200
-s_x, s_w_xy, s_w_xh, s_w_hy = 0.5, 0.1, 0.1, 0.1
+s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh = 0.5, 0.1, 0.1, 0.1, 0.1
 N_repeat, N_epoch = 10, 10
 K_FIXED = int(0.1 * N_y)
 NUM_TO_LEARN = 2
@@ -47,6 +47,7 @@ for experiment in trange(N_repeat):
     w_xy = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
     w_xh = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
     w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
+    w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
 
     for epoch in range(N_epoch):
         shuffle = np.arange(xs.shape[1])
@@ -57,11 +58,11 @@ for experiment in trange(N_repeat):
         y0_batch = w_xy @ xs
         h0_batch = w_xh @ xs
         for y0, h0 in zip(y0_batch.T, h0_batch.T):
-            h, y = kWTAi(y0=y0, h0=h0, w_hy=w_hy)
+            h, y = kWTAi(y0=y0, h0=h0, w_hy=w_hy, w_hh=w_hh)
             update_weights(w_hy, x_pre=h, x_post=y, n_choose=NUM_TO_LEARN)
 
         y_kwta_pre = y0_batch - w_hy @ h0_batch
-        _, y_batch = kWTAi(y0=y0_batch, h0=h0_batch, w_hy=w_hy)
+        _, y_batch = kWTAi(y0=y0_batch, h0=h0_batch, w_hy=w_hy, w_hh=w_hh)
         y_kwta_fixed_k = kWTA(y_kwta_pre, k=K_FIXED)
         n_active_batch = np.count_nonzero(y_batch, axis=0)
         y_kwta = kWTA_different_k(y_kwta_pre,
@@ -81,7 +82,7 @@ colormap = {
 fig, ax = plt.subplots()
 
 n_active = n_active.mean(axis=0)
-print(f"n_active={n_active.astype(int)}")
+print(f"n_active={n_active}")
 for key in stats.keys():
     mean = stats[key].mean(axis=0)
     std = stats[key].std(axis=0)

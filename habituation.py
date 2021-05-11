@@ -5,7 +5,7 @@ from tqdm import trange
 from kwta import kWTAi, update_weights, overlap, RESULTS_DIR, generate_k_active
 
 N_x, N_y, N_h = 100, 200, 200
-s_x, s_w_xy, s_w_xh, s_w_hy = 0.5, 0.1, 0.1, 0.1
+s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh = 0.5, 0.1, 0.1, 0.1, 0.1
 N_repeat, N_epoch = 10, 100
 K_FIXED = int(0.1 * N_y)
 NUM_TO_LEARN = 5
@@ -22,11 +22,12 @@ for experiment in trange(N_repeat):
     w_xy = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
     w_xh = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
     w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
+    w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
 
-    _, y0 = kWTAi(y0=w_xy @ x, h0=w_xh @ x, w_hy=w_hy)
+    _, y0 = kWTAi(y0=w_xy @ x, h0=w_xh @ x, w_hy=w_hy, w_hh=w_hh)
 
     for iter_id in range(100):
-        hi, yi = kWTAi(y0=w_xy @ x, h0=w_xh @ x, w_hy=w_hy)
+        hi, yi = kWTAi(y0=w_xy @ x, h0=w_xh @ x, w_hy=w_hy, w_hh=w_hh)
         stats['overlap'][experiment, iter_id] = overlap(yi, y0)
         stats['nonzero_count'][experiment, iter_id] = yi.sum()
         update_weights(w_hy, x_pre=hi, x_post=yi, n_choose=NUM_TO_LEARN)
