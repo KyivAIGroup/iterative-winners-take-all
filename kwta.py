@@ -44,9 +44,9 @@ def kWTAi(y0, h0, w_hy, w_yy=None, w_hh=None, w_yh=None):
     for threshold in range(t_start, 0, -1):
         z_h = h0
         if w_hh is not None:
-            z_h -= w_hh @ h
+            z_h = z_h - w_hh @ h
         if w_yh is not None:
-            z_h += w_yh @ y
+            z_h = z_h + w_yh @ y
         z_h = z_h >= threshold
 
         z_y = y0 - w_hy @ h
