@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
 
-from kwta import kWTA, kWTAi, update_weights, overlap
+from kwta import kWTA, kWTAi, RESULTS_DIR
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy = 0.1, 0.1, 0.1, 0.1
@@ -92,4 +92,5 @@ ax.set_title("Similarity preservation")
 ax.legend()
 ax.set_xlabel('x similarity')
 ax.set_ylabel('y similarity')
+plt.savefig(RESULTS_DIR / "similarity_preservation.jpg")
 plt.show()

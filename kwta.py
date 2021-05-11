@@ -1,5 +1,10 @@
-import numpy as np
 import warnings
+from pathlib import Path
+
+import numpy as np
+
+RESULTS_DIR = Path(__file__).parent / "results"
+RESULTS_DIR.mkdir(exist_ok=True)
 
 
 def kWTA(x, k):

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
 
-from kwta import kWTA, kWTAi, update_weights, overlap
+from kwta import kWTA, kWTAi, update_weights, overlap, RESULTS_DIR
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy = 0.5, 0.1, 0.1, 0.1
@@ -56,4 +56,5 @@ ax.set_title(f"Decorrelation. num_to_learn={NUM_TO_LEARN}")
 ax.legend()
 ax.set_xlabel('iteration')
 ax.set_ylabel('overlap(y1, y2)')
+plt.savefig(RESULTS_DIR / "decorrelation.jpg")
 plt.show()

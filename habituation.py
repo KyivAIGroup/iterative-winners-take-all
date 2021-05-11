@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
 
-from kwta import kWTAi, update_weights, overlap
+from kwta import kWTAi, update_weights, overlap, RESULTS_DIR
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy = 0.5, 0.1, 0.1, 0.1
@@ -38,4 +38,5 @@ ax.set_title(f"Habituation. num_to_learn={NUM_TO_LEARN}")
 ax.set_xlabel('iteration')
 ax.set_ylabel('overlap(y, y0)')
 ax.legend()
-plt.show()
+plt.savefig(RESULTS_DIR / "habituation.jpg")
+# plt.show()
