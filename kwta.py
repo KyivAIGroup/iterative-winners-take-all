@@ -21,6 +21,7 @@ def kWTA(x, k):
 
 def kWTA_different_k(x_tensor, ks):
     # x_tensor is a (N, trials) tensor
+    # ks is a list of (trials,) the num. of the top 'k' neurons
     assert x_tensor.shape[1] == len(ks)
     argsort = np.argsort(x_tensor, axis=0)[::-1]
     sdr = np.zeros_like(x_tensor)
@@ -30,14 +31,6 @@ def kWTA_different_k(x_tensor, ks):
         sdr[winners, trial_id] = 1
         assert (sdr[:, trial_id] == kWTA(x_tensor[:, trial_id], k=k)).all()
     return sdr
-
-
-def kWTAi_doesnt_work(x, w_lat):
-    y = np.zeros_like(x, dtype=np.int32)
-    for threshold in range(np.max(x), 0, -1):
-        z = x - w_lat @ y >= threshold
-        y = np.logical_or(y, z)
-    return y
 
 
 def overlap(x1, x2):
@@ -55,7 +48,7 @@ def generate_k_active(n, k):
     return x
 
 
-def kWTAi(y0, h0, w_hy, w_yy=None, w_hh=None, w_yh=None):
+def iWTA(y0, h0, w_hy, w_yy=None, w_hh=None, w_yh=None):
     # y0 is a (Ny,) vec or (Ny, trials) tensor
     # h0 is a (Nh,) vec or (Nh, trials) tensor
     h = np.zeros_like(h0, dtype=np.int32)

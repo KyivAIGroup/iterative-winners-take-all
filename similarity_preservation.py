@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
 
-from kwta import kWTA, kWTAi, RESULTS_DIR, generate_k_active, kWTA_different_k
+from kwta import kWTA, iWTA, RESULTS_DIR, generate_k_active, kWTA_different_k
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh = 0.1, 0.1, 0.1, 0.1, 0.05
@@ -41,12 +41,12 @@ def cosine_similarity(x_tensor):
 
 
 stats = {mode: np.zeros((N_REPEAT, N_SPLIT), dtype=np.float32)
-         for mode in ('kwta-fixed-k', 'kwta', 'iwta')}
+         for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA')}
 n_active = np.zeros((N_REPEAT, N_SPLIT), dtype=np.float32)
 
 similarity_x = None
 
-for experiment in trange(N_REPEAT):
+for repeat in trange(N_REPEAT):
     x = generate_k_active(n=N_x, k=10)
     x_similar = generate_similar_input(x)
 
@@ -56,21 +56,21 @@ for experiment in trange(N_REPEAT):
     w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
 
     y_kwta_pre = w_xy @ x_similar - w_hy @ (w_xh @ x_similar)
-    _, y_similar = kWTAi(y0=w_xy @ x_similar, h0=w_xh @ x_similar, w_hy=w_hy, w_hh=w_hh)
+    _, y_similar = iWTA(y0=w_xy @ x_similar, h0=w_xh @ x_similar, w_hy=w_hy, w_hh=w_hh)
     y_kwta_fixed_k = kWTA(y_kwta_pre, k=K_FIXED)
     n_active_batch = np.count_nonzero(y_similar, axis=0)
     y_kwta = kWTA_different_k(y_kwta_pre, ks=n_active_batch)
 
-    similarity_x = cosine_similarity(x_similar)  # same for all experiments
-    stats['iwta'][experiment] = cosine_similarity(y_similar)
-    stats['kwta'][experiment] = cosine_similarity(y_kwta)
-    stats['kwta-fixed-k'][experiment] = cosine_similarity(y_kwta_fixed_k)
-    n_active[experiment] = n_active_batch
+    similarity_x = cosine_similarity(x_similar)  # same for all repeats
+    stats['iWTA'][repeat] = cosine_similarity(y_similar)
+    stats['kWTA'][repeat] = cosine_similarity(y_kwta)
+    stats['kWTA-fixed-k'][repeat] = cosine_similarity(y_kwta_fixed_k)
+    n_active[repeat] = n_active_batch
 
 colormap = {
-    'iwta': 'green',
-    'kwta': 'blue',
-    'kwta-fixed-k': 'cyan'
+    'iWTA': 'green',
+    'kWTA': 'blue',
+    'kWTA-fixed-k': 'cyan'
 }
 
 fig, ax = plt.subplots()
