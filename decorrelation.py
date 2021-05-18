@@ -45,7 +45,8 @@ for repeat in trange(N_REPEATS):
         n_active_stats[repeat, iter_id] = np.count_nonzero(y['iWTA'], axis=0).mean()
 
         for mode in ('kWTA', 'kWTA-fixed-k'):
-            h[mode] = w_xh[mode] @ x12
+            h[mode] = kWTA(w_xh[mode] @ x12, k=K_FIXED)
+            # h[mode] = kWTA_different_k(w_xh[mode] @ x12, ks=np.count_nonzero(h['iWTA'], axis=0))
             y[mode] = w_xy[mode] @ x12 - w_hy[mode] @ h[mode]
         y['kWTA'] = kWTA_different_k(y['kWTA'], ks=np.count_nonzero(y['iWTA'], axis=0))
         y['kWTA-fixed-k'] = kWTA(y['kWTA-fixed-k'], k=K_FIXED)
