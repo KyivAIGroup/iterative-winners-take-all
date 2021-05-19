@@ -1,46 +1,92 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.spatial.distance import pdist, squareform
 from tqdm import trange
 
-from kwta import iWTA, update_weights, RESULTS_DIR, kWTA, kWTA_different_k, overlap, cosine_similarity
+from kwta import iWTA, update_weights, RESULTS_DIR, kWTA, kWTA_different_k, \
+    overlap
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.1, 0.02
 N_REPEATS, N_ITERS = 10, 100
 K_FIXED = int(0.1 * N_y)
 
-
+STATS_LABELS = "overlap($y_1^{noisy}, y_1$) - overlap($y_1^{noisy}, y_1 \cap y_2$)", \
+               "overlap($y_1^{noisy}, y_2$) - overlap($y_1^{noisy}, y_1 \cap y_2$)", \
+               r"overlap($y_1^{noisy}, y_1 \cap y_2$)"
 stats = {
-    mode: np.zeros((N_REPEATS, N_ITERS), dtype=np.float32)
+    mode: np.zeros((N_REPEATS, N_ITERS, 3), dtype=np.float32)
     for mode in ('iWTA', 'kWTA', 'kWTA-fixed-k')
 }
-n_active = np.zeros((N_REPEATS, N_ITERS), dtype=np.float32)
+stats['nonzero'] = np.zeros((N_REPEATS, N_ITERS), dtype=np.float32)
+
+def overlap2d(y_tensor):
+    y1, y2, y1_noisy = y_tensor.T
+    z = y1 ^ y2
+    overlap_z = overlap(y1_noisy, z)
+    return overlap(y1_noisy, y1) - overlap_z, \
+           overlap(y1_noisy, y2) - overlap_z, \
+           overlap_z
 
 
-for repeat in range(N_REPEATS):
-    x12 = np.random.binomial(1, s_x, size=(2, N_x))
-    x1, x2 = x12
-    x1_noisy, x2_noisy = x12 + np.random.binomial(1, 0.05, size=x12.shape)
+for repeat in trange(N_REPEATS):
+    x12 = np.random.binomial(1, s_x, size=(N_x, 2))
+    x12_noisy = x12 + np.random.binomial(1, 0.05, size=x12.shape)
+    x_stacked = np.c_[x12, x12_noisy[:, 0]]
 
-    w_xy = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
-    w_xh = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
-    w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
-    w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
-    w_yy = np.random.binomial(1, s_w_yy, size=(N_y, N_y))
+    w_xy, w_xh, w_hy, w_hh, w_yy = {}, {}, {}, {}, {}
+    for mode in stats.keys():
+        w_xy[mode] = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
+        w_xh[mode] = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
+        w_hy[mode] = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
+        w_hh[mode] = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
+        w_yy[mode] = np.random.binomial(1, s_w_yy, size=(N_h, N_h))
 
-    for x in x12:
-        y0 = w_xy @ x
-        h0 = w_xh @ x
-        for iteration in range(N_ITERS):
-            h, y = iWTA(y0=y0, h0=h0, w_hy=w_hy, w_yy=w_yy)
-            update_weights(w_hy, x_pre=x, x_post=h, n_choose=2)
-            update_weights(w_xy, x_pre=x, x_post=y, n_choose=2)
+    for learn_id in range(2):
+        for iter_id in range(N_ITERS):
+            h, y = {}, {}
+            h['iWTA'], y['iWTA'] = iWTA(y0=w_xy['iWTA'] @ x_stacked,
+                                        h0=w_xh['iWTA'] @ x_stacked,
+                                        w_hy=w_hy['iWTA'],
+                                        w_yy=w_yy['iWTA'])
+            stats['iWTA'][repeat, iter_id] = overlap2d(y['iWTA'])
+            stats['nonzero'][repeat, iter_id] = np.count_nonzero(y['iWTA'], axis=0).mean()
 
-    h1, y1 = iWTA(y0=w_xy @ x1, h0=w_xh @ x1, w_hy=w_hy, w_yy=w_yy)
-    h2, y2 = iWTA(y0=w_xy @ x2, h0=w_xy @ x2, w_hy=w_hy, w_yy=w_yy)
-    z = y1 & y2
+            for mode in ('kWTA', 'kWTA-fixed-k'):
+                h[mode] = kWTA(w_xh[mode] @ x_stacked, k=K_FIXED)
+                # h[mode] = kWTA_different_k(w_xh[mode] @ x_stacked, ks=np.count_nonzero(h['iWTA'], axis=0))
+                y[mode] = w_xy[mode] @ x_stacked - w_hy[mode] @ h[mode]
+            y['kWTA'] = kWTA_different_k(y['kWTA'], ks=np.count_nonzero(y['iWTA'], axis=0))
+            y['kWTA-fixed-k'] = kWTA(y['kWTA-fixed-k'], k=K_FIXED)
 
-    h1_noisy, y1_noisy = iWTA(y0=w_xy @ x1_noisy, h0=w_xh @ x1_noisy, w_hy=w_hy, w_yy=w_yy)
+            stats['kWTA'][repeat, iter_id] = overlap2d(y['kWTA'])
+            stats['kWTA-fixed-k'][repeat, iter_id] = overlap2d(y['kWTA-fixed-k'])
 
-    print(f"{overlap(y1_noisy, y1) - overlap(y1_noisy, z)=}, {overlap(y1_noisy, y2) - overlap(y1_noisy, z)=}, {overlap(y1_noisy, z)=}")
+            for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
+                update_weights(w_hy[mode], x_pre=h[mode][:, learn_id],
+                               x_post=y[mode][:, learn_id], n_choose=2)
+                update_weights(w_yy[mode], x_pre=y[mode][:, learn_id],
+                               x_post=y[mode][:, learn_id], n_choose=2)
+
+colormap = ['green', 'red', 'blue']
+
+fig, axes = plt.subplots(nrows=3, sharex=True, sharey=True)
+fig.subplots_adjust(hspace=0)
+
+# axes[0].plot(range(N_ITERS), stats.pop('nonzero').mean(axis=0), lw=2, ls='dashed',
+#           label='nonzero', color='gray')
+
+for key, ax in zip(stats.keys(), axes):
+    mean = stats[key].mean(axis=0)
+    std = stats[key].std(axis=0)
+    for i, label in enumerate(STATS_LABELS):
+        ax.plot(range(N_ITERS), mean[:, i], lw=2, label=label,
+                color=colormap[i])
+        ax.fill_between(range(N_ITERS), mean[:, i] + std[:, i],
+                        mean[:, i] - std[:, i],
+                        facecolor=colormap[i], alpha=0.1)
+    ax.set_ylabel(key)
+axes[0].legend(bbox_to_anchor=(1.02, 1))
+axes[2].set_xlabel('Iteration')
+plt.tight_layout()
+plt.savefig(RESULTS_DIR / "mean_of_two_classes.jpg")
+plt.show()
