@@ -19,9 +19,9 @@ def generate_similar_input(x, n_split=N_SPLIT):
     k = len(idx_pool)
     n_idx_take = np.linspace(0, k, num=n_split, dtype=int)
     x_similar = np.zeros((x.shape[0], n_split), dtype=np.int32)
-    for i, size in enumerate(n_idx_take):
-        active = np.random.choice(idx_pool, size=size, replace=False)
-        active_no_overlap = np.random.choice(no_overlap_idx, size=k - size,
+    for i, k_common in enumerate(n_idx_take):
+        active = np.random.choice(idx_pool, size=k_common, replace=False)
+        active_no_overlap = np.random.choice(no_overlap_idx, size=k - k_common,
                                              replace=False)
         active = np.append(active, active_no_overlap)
         x_similar[active, i] = 1
