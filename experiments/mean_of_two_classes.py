@@ -4,15 +4,16 @@ from tqdm import trange
 
 from kwta import iWTA, update_weights, RESULTS_DIR, kWTA, kWTA_different_k, \
     overlap
+from monitor import plot_intersection
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.1, 0.02
 N_REPEATS, N_ITERS = 10, 100
 K_FIXED = int(0.1 * N_y)
 
-STATS_LABELS = "overlap($y_1^{noisy}, y_1$) - overlap($y_1^{noisy}, y_1 \cap y_2$)", \
-               "overlap($y_1^{noisy}, y_2$) - overlap($y_1^{noisy}, y_1 \cap y_2$)", \
-               r"overlap($y_1^{noisy}, y_1 \cap y_2$)"
+STATS_LABELS = "ovl($y_1^{noisy}, y_1$) - ovl($y_1^{noisy}, y_1 \cap y_2$)", \
+               "ovl($y_1^{noisy}, y_2$) - ovl($y_1^{noisy}, y_1 \cap y_2$)", \
+               r"ovl($y_1^{noisy}, y_1 \cap y_2$)"
 stats = {
     mode: np.zeros((N_REPEATS, N_ITERS, 3), dtype=np.float32)
     for mode in ('iWTA', 'kWTA', 'kWTA-fixed-k')
@@ -63,9 +64,15 @@ for repeat in trange(N_REPEATS):
 
             for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
                 update_weights(w_hy[mode], x_pre=h[mode][:, learn_id],
-                               x_post=y[mode][:, learn_id], n_choose=2)
+                               x_post=y[mode][:, learn_id], n_choose=5)
                 update_weights(w_yy[mode], x_pre=y[mode][:, learn_id],
-                               x_post=y[mode][:, learn_id], n_choose=2)
+                               x_post=y[mode][:, learn_id], n_choose=1)
+
+for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
+    plot_intersection(y[mode],
+                      labels=('$y_1$', '$y_2$', '$y_1^{noisy}$'),
+                      title=mode)
+plt.show()
 
 colormap = ['green', 'red', 'blue']
 
