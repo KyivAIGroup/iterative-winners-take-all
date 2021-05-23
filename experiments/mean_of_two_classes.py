@@ -10,6 +10,7 @@ N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.1, 0.02
 N_REPEATS, N_ITERS = 10, 100
 K_FIXED = int(0.1 * N_y)
+INHIBIT_Y_OVERLAP = False
 
 STATS_LABELS = "ovl($y_1^{noisy}, y_1$) - ovl($y_1^{noisy}, y_1 \cap y_2$)", \
                "ovl($y_1^{noisy}, y_2$) - ovl($y_1^{noisy}, y_1 \cap y_2$)", \
@@ -22,11 +23,16 @@ stats['nonzero'] = np.zeros((N_REPEATS, N_ITERS), dtype=np.float32)
 
 def overlap2d(y_tensor):
     y1, y2, y1_noisy = y_tensor.T
-    z = y1 ^ y2
+    z = y1 & y2
     overlap_z = overlap(y1_noisy, z)
     return overlap(y1_noisy, y1) - overlap_z, \
            overlap(y1_noisy, y2) - overlap_z, \
            overlap_z
+
+def inhibit_overlap(tensor):
+    z = tensor[:, 0] & tensor[:, 1]
+    z = np.expand_dims(z, axis=1)  # (N, 1)
+    tensor ^= z
 
 
 for repeat in trange(N_REPEATS):
@@ -49,6 +55,9 @@ for repeat in trange(N_REPEATS):
                                         h0=w_xh['iWTA'] @ x_stacked,
                                         w_hy=w_hy['iWTA'],
                                         w_yy=w_yy['iWTA'])
+            if INHIBIT_Y_OVERLAP:
+                inhibit_overlap(y['iWTA'])
+
             stats['iWTA'][repeat, iter_id] = overlap2d(y['iWTA'])
             stats['nonzero'][repeat, iter_id] = np.count_nonzero(y['iWTA'], axis=0).mean()
 
@@ -58,13 +67,18 @@ for repeat in trange(N_REPEATS):
                 y[mode] = w_xy[mode] @ x_stacked - w_hy[mode] @ h[mode]
             y['kWTA'] = kWTA_different_k(y['kWTA'], ks=np.count_nonzero(y['iWTA'], axis=0))
             y['kWTA-fixed-k'] = kWTA(y['kWTA-fixed-k'], k=K_FIXED)
+            if INHIBIT_Y_OVERLAP:
+                inhibit_overlap(y['kWTA'])
+                inhibit_overlap(y['kWTA-fixed-k'])
 
             stats['kWTA'][repeat, iter_id] = overlap2d(y['kWTA'])
             stats['kWTA-fixed-k'][repeat, iter_id] = overlap2d(y['kWTA-fixed-k'])
 
             for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
                 update_weights(w_hy[mode], x_pre=h[mode][:, learn_id],
-                               x_post=y[mode][:, learn_id], n_choose=5)
+                               x_post=y[mode][:, learn_id], n_choose=2)
+                update_weights(w_hy[mode], x_pre=h[mode][:, learn_id],
+                               x_post=y[mode][:, 1 - learn_id], n_choose=5)
                 update_weights(w_yy[mode], x_pre=y[mode][:, learn_id],
                                x_post=y[mode][:, learn_id], n_choose=1)
 
@@ -72,7 +86,7 @@ for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
     plot_intersection(y[mode],
                       labels=('$y_1$', '$y_2$', '$y_1^{noisy}$'),
                       title=mode)
-plt.show()
+    plt.savefig(RESULTS_DIR / f"assembly_{mode}.png")
 
 colormap = ['green', 'red', 'blue']
 
@@ -96,4 +110,3 @@ axes[0].legend(bbox_to_anchor=(1.02, 1))
 axes[2].set_xlabel('Iteration')
 plt.tight_layout()
 plt.savefig(RESULTS_DIR / "mean_of_two_classes.jpg")
-plt.show()
