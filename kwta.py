@@ -88,6 +88,14 @@ def iWTA(y0, h0, w_hy, w_yy=None, w_hh=None, w_yh=None):
 
 
 def update_weights(w, x_pre, x_post, n_choose=1):
-    inds_pre = np.random.choice(np.nonzero(x_pre)[0], n_choose)
-    inds_post = np.random.choice(np.nonzero(x_post)[0], n_choose)
+    x_pre_idx = np.nonzero(x_pre)[0]
+    if len(x_pre_idx) == 0:
+        warnings.warn("'x_pre' is a zero vector")
+        return
+    x_post_idx = np.nonzero(x_post)[0]
+    if len(x_post_idx) == 0:
+        warnings.warn("'x_post' is a zero vector")
+        return
+    inds_pre = np.random.choice(x_pre_idx, n_choose)
+    inds_post = np.random.choice(x_post_idx, n_choose)
     w[inds_post, inds_pre] = 1

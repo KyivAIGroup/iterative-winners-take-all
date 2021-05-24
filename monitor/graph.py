@@ -36,6 +36,8 @@ def plot_intersection(assemblies, labels=None, title=None):
                                label=labels[class_id])
     nx.draw_networkx_labels(graph, pos=pos, labels=node_to_class,
                             font_size=6, alpha=0.7)
+    plt.title(title)
+    plt.legend()
 
     nodes, locations = list(zip(*pos.items()))
     locations = np.array(locations)
@@ -43,19 +45,19 @@ def plot_intersection(assemblies, labels=None, title=None):
     locations = locations[argsort]
     nodes = np.take(nodes, argsort)
     for class_id, assembly in enumerate(assemblies):
+        if len(assembly) < 3:
+            # not enough points to construct a convex hull
+            continue
         idx = np.searchsorted(nodes, assembly)
         hull = ConvexHull(locations[idx])
         cent = np.mean(hull.points, axis=0)
         hull_points = np.concatenate(hull.points[hull.simplices], axis=0)
         hull_points = hull_points.tolist()
         hull_points.sort(key=lambda p: np.arctan2(p[1] - cent[1],
-                                          p[0] - cent[0]))
+                                                  p[0] - cent[0]))
         hull_points = hull_points[0::2]  # Deleting duplicates
         hull_points = 1.2 * (np.array(hull_points) - cent) + cent
         poly = Polygon(hull_points,
                        facecolor=colors[class_id], alpha=0.1,
                        capstyle='round', joinstyle='round')
         plt.gca().add_patch(poly)
-
-    plt.title(title)
-    plt.legend()
