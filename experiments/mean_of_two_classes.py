@@ -2,19 +2,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
 
-from kwta import iWTA, update_weights, RESULTS_DIR, kWTA, kWTA_different_k, \
-    overlap
+from constants import RESULTS_DIR
+from kwta import iWTA, update_weights, kWTA, kWTA_different_k
 from monitor import plot_intersection
+from utils import overlap
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.1, 0.02
 N_REPEATS, N_ITERS = 10, 100
-K_FIXED = int(0.1 * N_y)
+K_FIXED = int(0.15 * N_y)
 INHIBIT_Y_OVERLAP = False
 
-STATS_LABELS = "ovl($y_1^{noisy}, y_1$) - ovl($y_1^{noisy}, y_1 \cap y_2$)", \
-               "ovl($y_1^{noisy}, y_2$) - ovl($y_1^{noisy}, y_1 \cap y_2$)", \
-               r"ovl($y_1^{noisy}, y_1 \cap y_2$)"
+STATS_LABELS = "ovl($y_1^{noisy}, y_1$) - ovl($y_1, y_2$)", \
+               "ovl($y_1^{noisy}, y_2$) - ovl($y_1, y_2$)", \
+               r"ovl($y_1, y_2$)"
 stats = {
     mode: np.zeros((N_REPEATS, N_ITERS, 3), dtype=np.float32)
     for mode in ('iWTA', 'kWTA', 'kWTA-fixed-k')
@@ -23,8 +24,7 @@ stats['nonzero'] = np.zeros((N_REPEATS, N_ITERS), dtype=np.float32)
 
 def overlap2d(y_tensor):
     y1, y2, y1_noisy = y_tensor.T
-    z = y1 & y2
-    overlap_z = overlap(y1_noisy, z)
+    overlap_z = overlap(y1, y2)
     return overlap(y1_noisy, y1) - overlap_z, \
            overlap(y1_noisy, y2) - overlap_z, \
            overlap_z
@@ -48,39 +48,35 @@ for repeat in trange(N_REPEATS):
         w_hh[mode] = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
         w_yy[mode] = np.random.binomial(1, s_w_yy, size=(N_h, N_h))
 
-    for learn_id in range(2):
-        for iter_id in range(N_ITERS):
-            h, y = {}, {}
-            h['iWTA'], y['iWTA'] = iWTA(y0=w_xy['iWTA'] @ x_stacked,
-                                        h0=w_xh['iWTA'] @ x_stacked,
-                                        w_hy=w_hy['iWTA'],
-                                        w_yy=w_yy['iWTA'])
-            if INHIBIT_Y_OVERLAP:
-                inhibit_overlap(y['iWTA'])
+    for iter_id in range(N_ITERS):
+        h, y = {}, {}
+        h['iWTA'], y['iWTA'] = iWTA(y0=w_xy['iWTA'] @ x_stacked,
+                                    h0=w_xh['iWTA'] @ x_stacked,
+                                    w_hy=w_hy['iWTA'],
+                                    w_yy=w_yy['iWTA'])
+        if INHIBIT_Y_OVERLAP:
+            inhibit_overlap(y['iWTA'])
 
-            stats['iWTA'][repeat, iter_id] = overlap2d(y['iWTA'])
-            stats['nonzero'][repeat, iter_id] = np.count_nonzero(y['iWTA'], axis=0).mean()
+        stats['nonzero'][repeat, iter_id] = np.count_nonzero(y['iWTA'], axis=0).mean()
 
-            for mode in ('kWTA', 'kWTA-fixed-k'):
-                h[mode] = kWTA(w_xh[mode] @ x_stacked, k=K_FIXED)
-                # h[mode] = kWTA_different_k(w_xh[mode] @ x_stacked, ks=np.count_nonzero(h['iWTA'], axis=0))
-                y[mode] = w_xy[mode] @ x_stacked - w_hy[mode] @ h[mode]
-            y['kWTA'] = kWTA_different_k(y['kWTA'], ks=np.count_nonzero(y['iWTA'], axis=0))
-            y['kWTA-fixed-k'] = kWTA(y['kWTA-fixed-k'], k=K_FIXED)
-            if INHIBIT_Y_OVERLAP:
-                inhibit_overlap(y['kWTA'])
-                inhibit_overlap(y['kWTA-fixed-k'])
+        for mode in ('kWTA', 'kWTA-fixed-k'):
+            h[mode] = kWTA(w_xh[mode] @ x_stacked, k=K_FIXED)
+            # h[mode] = kWTA_different_k(w_xh[mode] @ x_stacked, ks=np.count_nonzero(h['iWTA'], axis=0))
+            y[mode] = w_xy[mode] @ x_stacked - w_hy[mode] @ h[mode]
+        y['kWTA'] = kWTA_different_k(y['kWTA'], ks=np.count_nonzero(y['iWTA'], axis=0))
+        y['kWTA-fixed-k'] = kWTA(y['kWTA-fixed-k'], k=K_FIXED)
+        if INHIBIT_Y_OVERLAP:
+            inhibit_overlap(y['kWTA'])
+            inhibit_overlap(y['kWTA-fixed-k'])
 
-            stats['kWTA'][repeat, iter_id] = overlap2d(y['kWTA'])
-            stats['kWTA-fixed-k'][repeat, iter_id] = overlap2d(y['kWTA-fixed-k'])
-
-            for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
-                update_weights(w_hy[mode], x_pre=h[mode][:, learn_id],
-                               x_post=y[mode][:, learn_id], n_choose=2)
-                update_weights(w_hy[mode], x_pre=h[mode][:, learn_id],
-                               x_post=y[mode][:, 1 - learn_id], n_choose=5)
-                update_weights(w_yy[mode], x_pre=y[mode][:, learn_id],
-                               x_post=y[mode][:, learn_id], n_choose=1)
+        for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
+            stats[mode][repeat, iter_id] = overlap2d(y[mode])
+            update_weights(w_hy[mode], x_pre=h[mode][:, :2],
+                           x_post=y[mode][:, :2], n_choose=10)
+            # update_weights(w_hy[mode], x_pre=h[mode][:, learn_id],
+            #                x_post=y[mode][:, 1 - learn_id], n_choose=5)
+            update_weights(w_yy[mode], x_pre=y[mode][:, :2],
+                           x_post=y[mode][:, :2], n_choose=5)
 
 for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
     plot_intersection(y[mode],
@@ -93,8 +89,8 @@ colormap = ['green', 'red', 'blue']
 fig, axes = plt.subplots(nrows=3, sharex=True, sharey=True)
 fig.subplots_adjust(hspace=0)
 
-# axes[0].plot(range(N_ITERS), stats.pop('nonzero').mean(axis=0), lw=2, ls='dashed',
-#           label='nonzero', color='gray')
+axes[0].plot(range(N_ITERS), stats.pop('nonzero').mean(axis=0), ls='dashed',
+             lw=2, label='nonzero', color='gray')
 
 for key, ax in zip(stats.keys(), axes):
     mean = stats[key].mean(axis=0)

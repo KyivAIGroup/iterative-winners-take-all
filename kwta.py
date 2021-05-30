@@ -1,10 +1,6 @@
 import warnings
-from pathlib import Path
 
 import numpy as np
-
-RESULTS_DIR = Path(__file__).parent / "results"
-RESULTS_DIR.mkdir(exist_ok=True)
 
 
 def kWTA(x, k):
@@ -33,27 +29,12 @@ def kWTA_different_k(x_tensor, ks):
     return sdr
 
 
-def overlap(x1, x2):
-    return (x1 & x2).sum()
-
-
-def cosine_similarity(x1, x2):
-    return x1.dot(x2) / (np.linalg.norm(x1) * np.linalg.norm(x2))
-
-
-def generate_k_active(n, k):
-    x = np.zeros(n, dtype=np.int32)
-    active = np.random.choice(n, size=k, replace=False)
-    x[active] = 1
-    return x
-
-
 def iWTA(y0, h0, w_hy, w_yy=None, w_hh=None, w_yh=None):
     # y0 is a (Ny,) vec or (Ny, trials) tensor
     # h0 is a (Nh,) vec or (Nh, trials) tensor
     h = np.zeros_like(h0, dtype=np.int32)
     y = np.zeros_like(y0, dtype=np.int32)
-    t_start = max(np.max(h0), np.max(y0))
+    t_start = max(h0.max(), y0.max())
     for threshold in range(t_start, 0, -1):
         z_h = h0
         if w_hh is not None:
@@ -73,29 +54,38 @@ def iWTA(y0, h0, w_hy, w_yy=None, w_hh=None, w_yh=None):
     # TODO the same hack should be for 'h'
     if y.ndim == 1:
         y = np.expand_dims(y, axis=1)
-    empty_cols = ~(y.any(axis=0))
-    if empty_cols.any():
+    empty_trials = ~(y.any(axis=0))
+    if empty_trials.any():
         # This is particularly wrong because y != y_kwta even when k=1
-        warnings.warn("kWTAi resulted in a zero vector. "
+        warnings.warn("iWTA resulted in a zero vector. "
                       "Activating one neuron manually.")
-        y_kwta = kWTA(y0 - w_hy @ h0, k=1)
+        h_kwta = kWTA(h0, k=1)
+        y_kwta = kWTA(y0 - w_hy @ h_kwta, k=1)
         if y_kwta.ndim == 1:
+            h_kwta = np.expand_dims(h_kwta, axis=1)
             y_kwta = np.expand_dims(y_kwta, axis=1)
-        y[:, empty_cols] = y_kwta[:, empty_cols]
+        h[:, empty_trials] = h_kwta[:, empty_trials]
+        y[:, empty_trials] = y_kwta[:, empty_trials]
+    h = h.squeeze()
     y = y.squeeze()
 
     return h, y
 
 
 def update_weights(w, x_pre, x_post, n_choose=1):
-    x_pre_idx = np.nonzero(x_pre)[0]
+    if x_pre.ndim == 2:
+        assert x_pre.shape[1] == x_post.shape[1]
+        for x, y in zip(x_pre.T, x_post.T):
+            update_weights(w, x_pre=x, x_post=y)
+        return
+    x_pre_idx = x_pre.nonzero()[0]
     if len(x_pre_idx) == 0:
         warnings.warn("'x_pre' is a zero vector")
         return
-    x_post_idx = np.nonzero(x_post)[0]
+    x_post_idx = x_post.nonzero()[0]
     if len(x_post_idx) == 0:
         warnings.warn("'x_post' is a zero vector")
         return
-    inds_pre = np.random.choice(x_pre_idx, n_choose)
-    inds_post = np.random.choice(x_post_idx, n_choose)
-    w[inds_post, inds_pre] = 1
+    idx_pre = np.random.choice(x_pre_idx, n_choose)
+    idx_post = np.random.choice(x_post_idx, n_choose)
+    w[idx_post, idx_pre] = 1

@@ -3,7 +3,8 @@ import numpy as np
 from scipy.spatial.distance import pdist, squareform
 from tqdm import trange
 
-from kwta import iWTA, update_weights, RESULTS_DIR, kWTA, kWTA_different_k
+from kwta import iWTA, update_weights, kWTA, kWTA_different_k
+from constants import RESULTS_DIR
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.1, 0.02

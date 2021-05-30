@@ -7,13 +7,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
 
-from kwta import kWTA, iWTA, update_weights, overlap, RESULTS_DIR, kWTA_different_k
+from constants import RESULTS_DIR
+from kwta import kWTA, iWTA, update_weights, kWTA_different_k
+from utils import overlap
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.05, 0.05
 N_REPEATS, N_ITERS = 10, 100
 K_FIXED = int(0.15 * N_y)
-NUM_TO_LEARN = 5
+NUM_TO_LEARN = 50
 
 stats = {mode: np.zeros((N_REPEATS, N_ITERS), dtype=np.float32)
          for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA', 'nonzero')}
@@ -40,21 +42,21 @@ for repeat in trange(N_REPEATS):
         h['iWTA'], y['iWTA'] = iWTA(y0=w_xy['iWTA'] @ x12,
                                     h0=w_xh['iWTA'] @ x12,
                                     w_hy=w_hy['iWTA'])
-        stats['iWTA'][repeat, iter_id] = overlap2d(y['iWTA'])
-        stats['nonzero'][repeat, iter_id] = np.count_nonzero(y['iWTA'], axis=0).mean()
+        stats['nonzero'][repeat, iter_id] = np.count_nonzero(y['iWTA'],
+                                                             axis=0).mean()
 
         for mode in ('kWTA', 'kWTA-fixed-k'):
             h[mode] = kWTA(w_xh[mode] @ x12, k=K_FIXED)
             # h[mode] = kWTA_different_k(w_xh[mode] @ x12, ks=np.count_nonzero(h['iWTA'], axis=0))
             y[mode] = w_xy[mode] @ x12 - w_hy[mode] @ h[mode]
-        y['kWTA'] = kWTA_different_k(y['kWTA'], ks=np.count_nonzero(y['iWTA'], axis=0))
+        y['kWTA'] = kWTA_different_k(y['kWTA'],
+                                     ks=np.count_nonzero(y['iWTA'], axis=0))
         y['kWTA-fixed-k'] = kWTA(y['kWTA-fixed-k'], k=K_FIXED)
 
-        stats['kWTA'][repeat, iter_id] = overlap2d(y['kWTA'])
-        stats['kWTA-fixed-k'][repeat, iter_id] = overlap2d(y['kWTA-fixed-k'])
-
         for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
-            update_weights(w_hy[mode], x_pre=h[mode][:, 0], x_post=y[mode][:, 0], n_choose=NUM_TO_LEARN)
+            stats[mode][repeat, iter_id] = overlap2d(y[mode])
+            update_weights(w_hy[mode], x_pre=h[mode], x_post=y[mode],
+                           n_choose=NUM_TO_LEARN)
 
 colormap = {
     'iWTA': 'green',
