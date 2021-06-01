@@ -2,7 +2,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
 
-from kwta import kWTA, iWTA, RESULTS_DIR, generate_k_active, kWTA_different_k
+from kwta import kWTA, iWTA, kWTA_different_k
+from constants import RESULTS_DIR
+from utils import generate_k_active
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh = 0.1, 0.1, 0.1, 0.1, 0.05

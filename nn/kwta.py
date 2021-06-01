@@ -1,10 +1,6 @@
-import warnings
-from pathlib import Path
-
 import torch
 import torch.nn as nn
-
-import numpy as np
+import warnings
 
 
 class KWTAFunction(torch.autograd.Function):
@@ -28,12 +24,12 @@ class KWTAFunction(torch.autograd.Function):
 class KWTANet(nn.Module):
     def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None, kh=None, ky=None):
         super().__init__()
-        self.w_xy = w_xy
-        self.w_xh = w_xh
-        self.w_hy = w_hy
-        self.w_yy = w_yy
-        self.w_hh = w_hh
-        self.w_yh = w_yh
+        self.register_buffer('w_xy', w_xy)
+        self.register_buffer('w_xh', w_xh)
+        self.register_buffer('w_hy', w_hy)
+        self.register_buffer('w_yy', w_yy)
+        self.register_buffer('w_hh', w_hh)
+        self.register_buffer('w_yh', w_yh)
         assert kh is not None
         self.kh = kh
         self.ky = ky
@@ -51,12 +47,12 @@ class KWTANet(nn.Module):
 class IterativeWTA(nn.Module):
     def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None):
         super().__init__()
-        self.w_xy = w_xy
-        self.w_xh = w_xh
-        self.w_hy = w_hy
-        self.w_yy = w_yy
-        self.w_hh = w_hh
-        self.w_yh = w_yh
+        self.register_buffer('w_xy', w_xy)
+        self.register_buffer('w_xh', w_xh)
+        self.register_buffer('w_hy', w_hy)
+        self.register_buffer('w_yy', w_yy)
+        self.register_buffer('w_hh', w_hh)
+        self.register_buffer('w_yh', w_yh)
 
     def forward(self, x):
         x = torch.atleast_2d(x)

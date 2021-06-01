@@ -7,14 +7,31 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import trange
 import torch
+import torch.nn as nn
 
 from torchvision.datasets import MNIST
+from torch.utils.data import TensorDataset
 from mighty.monitor.monitor import MonitorEmbedding
 from constants import RESULTS_DIR
 
 # from kwta import kWTA, iWTA, update_weights, overlap, RESULTS_DIR, kWTA_different_k
 from nn.kwta import KWTANet, IterativeWTA, update_weights
-from nn.utils import sample_bernoulli
+from nn.utils import sample_bernoulli, NoShuffleLoader
+
+
+from mighty.models import *
+from mighty.monitor.accuracy import AccuracyArgmax, AccuracyEmbedding
+from mighty.monitor.monitor import Monitor
+from mighty.monitor.mutual_info import *
+from mighty.trainer import *
+from mighty.utils.common import set_seed
+from mighty.utils.data import get_normalize_inverse, DataLoader, \
+    TransformDefault
+from mighty.utils.domain import MonitorLevel
+from mighty.loss import TripletLossSampler
+
+from nn.trainer import TrainerIWTA
+
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.05, 0.05
@@ -31,11 +48,14 @@ def overlap2d(tensor):
     return (tensor[0] & tensor[1]).sum()
 
 
+class RandomDataset(TensorDataset):
+    def __init__(self, *args, **kwargs):
+        x12 = sample_bernoulli(s_x, shape=(2, N_x))
+        labels = torch.arange(2)
+        super().__init__(x12, labels)
+
+
 for repeat in trange(N_REPEATS):
-    x12 = sample_bernoulli(s_x, shape=(2, N_x))
-
-    monitor = MonitorEmbedding()
-
     w_xy, w_xh, w_hy, w_hh, w_yy = {}, {}, {}, {}, {}
     for mode in stats.keys():
         w_xy[mode] = sample_bernoulli(s_w_xy, shape=(N_x, N_y))
@@ -44,6 +64,15 @@ for repeat in trange(N_REPEATS):
     kwta_variable = KWTANet(w_xy=w_xy['kWTA'], w_xh=w_xh['kWTA'], w_hy=w_hy['kWTA'], kh=K_FIXED)
     kwta_fixed = KWTANet(w_xy=w_xy['kWTA-fixed-k'], w_xh=w_xh['kWTA-fixed-k'], w_hy=w_hy['kWTA-fixed-k'], kh=K_FIXED, ky=K_FIXED)
     iwta = IterativeWTA(w_xy=w_xy['iWTA'], w_xh=w_xh['iWTA'], w_hy=w_hy['iWTA'])
+
+    data_loader = DataLoader(RandomDataset, transform=None,
+                             loader_cls=NoShuffleLoader)
+    criterion = TripletLossSampler(nn.TripletMarginLoss())
+    trainer = TrainerIWTA(model=iwta, criterion=criterion,
+                          data_loader=data_loader)
+    trainer.train(n_epochs=N_ITERS)
+
+    x12, labels_unused = data_loader.sample()
 
     for iter_id in range(N_ITERS):
         h, y = {}, {}

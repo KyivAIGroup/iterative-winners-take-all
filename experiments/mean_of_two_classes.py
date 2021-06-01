@@ -4,12 +4,12 @@ from tqdm import trange
 
 from constants import RESULTS_DIR
 from kwta import iWTA, update_weights, kWTA, kWTA_different_k
-from monitor import plot_intersection
+from graph import plot_assemblies
 from utils import overlap
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.1, 0.02
-N_REPEATS, N_ITERS = 10, 100
+N_REPEATS, N_ITERS = 10, 10
 K_FIXED = int(0.15 * N_y)
 INHIBIT_Y_OVERLAP = False
 
@@ -79,9 +79,9 @@ for repeat in trange(N_REPEATS):
                            x_post=y[mode][:, :2], n_choose=5)
 
 for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA'):
-    plot_intersection(y[mode],
-                      labels=('$y_1$', '$y_2$', '$y_1^{noisy}$'),
-                      title=mode)
+    plot_assemblies(y[mode],
+                    labels=('$y_1$', '$y_2$', '$y_1^{noisy}$'),
+                    title=mode)
     plt.savefig(RESULTS_DIR / f"assembly_{mode}.png")
 
 colormap = ['green', 'red', 'blue']
