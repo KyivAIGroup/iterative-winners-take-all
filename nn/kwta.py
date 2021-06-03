@@ -21,18 +21,37 @@ class KWTAFunction(torch.autograd.Function):
         return y
 
 
-class KWTANet(nn.Module):
-    def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None, kh=None, ky=None):
+class WTAInterface(nn.Module):
+    def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None):
         super().__init__()
-        self.register_buffer('w_xy', w_xy)
-        self.register_buffer('w_xh', w_xh)
-        self.register_buffer('w_hy', w_hy)
-        self.register_buffer('w_yy', w_yy)
-        self.register_buffer('w_hh', w_hh)
-        self.register_buffer('w_yh', w_yh)
+        self.w_xy = nn.Parameter(w_xy, requires_grad=False)
+        self.w_xh = nn.Parameter(w_xh, requires_grad=False)
+        self.w_hy = nn.Parameter(w_hy, requires_grad=False)
+        if w_yy is None:
+            self.w_yy = None
+        else:
+            self.w_yy = nn.Parameter(w_yy, requires_grad=False)
+        if w_hh is None:
+            self.w_hh = None
+        else:
+            self.w_hh = nn.Parameter(w_hh, requires_grad=False)
+        if w_yh is None:
+            self.w_yh = None
+        else:
+            self.w_yh = nn.Parameter(w_yh, requires_grad=False)
+
+    def update_weights(self, h, y, n_choose=1):
+        update_weights(self.w_hy, x_pre=h, x_post=y, n_choose=n_choose)
+        if self.w_yy is not None:
+            update_weights(self.w_yy, x_pre=y, x_post=y, n_choose=n_choose)
+
+
+class KWTANet(WTAInterface):
+    def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None, kh=None, ky=None):
+        super().__init__(w_xy, w_xh, w_hy, w_yy=w_yy, w_hh=w_hh, w_yh=w_yh)
         assert kh is not None
         self.kh = kh
-        self.ky = ky
+        self.ky = ky  # if None, must be specified in the forward pass
 
     def forward(self, x, ky=None):
         if ky is None:
@@ -44,15 +63,7 @@ class KWTANet(nn.Module):
         return h, y
 
 
-class IterativeWTA(nn.Module):
-    def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None):
-        super().__init__()
-        self.register_buffer('w_xy', w_xy)
-        self.register_buffer('w_xh', w_xh)
-        self.register_buffer('w_hy', w_hy)
-        self.register_buffer('w_yy', w_yy)
-        self.register_buffer('w_hh', w_hh)
-        self.register_buffer('w_yh', w_yh)
+class IterativeWTA(WTAInterface):
 
     def forward(self, x):
         x = torch.atleast_2d(x)

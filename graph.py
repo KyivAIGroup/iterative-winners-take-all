@@ -8,11 +8,12 @@ from matplotlib.patches import Polygon
 from scipy.spatial import ConvexHull
 
 
-def plot_assemblies(assemblies, n_hidden=2, labels=None, title=None):
+def plot_assemblies(assemblies, n_hidden=2, pos=None, labels=None, title=None):
     # (N, samples)
     if isinstance(assemblies, np.ndarray):
         assemblies = [vec.nonzero()[0] for vec in assemblies.T]
-    hidden_start = np.concatenate(assemblies).max() + 1
+    unique = set(np.concatenate(assemblies))
+    hidden_start = max(unique) + 1
 
     if len(assemblies) < 2:
         # do nothing
@@ -30,11 +31,11 @@ def plot_assemblies(assemblies, n_hidden=2, labels=None, title=None):
         graph.add_nodes_from(assembly)
         graph.add_edges_from(combinations(assembly, 2))
     node_labels = {node: ','.join(node_labels[node]) for node in graph.nodes}
-    pos = nx.spring_layout(graph, iterations=50)
-    cmap = plt.cm.get_cmap("hsv", len(assemblies) + 1)  # +1 is necessary
-    colors = np.array([cmap(i) for i in range(len(assemblies))])
+    pos = nx.spring_layout(graph, iterations=100, pos=pos)
 
     fig, ax = plt.subplots()
+    cmap = plt.cm.get_cmap("hsv", len(assemblies) + 1)  # +1 is necessary
+    colors = np.array([cmap(i) for i in range(len(assemblies))])
     for class_id, assembly in enumerate(assemblies):
         nx.draw_networkx_nodes(graph, pos=pos, nodelist=assembly,
                                node_color=[colors[class_id]], alpha=0.2,
@@ -42,7 +43,8 @@ def plot_assemblies(assemblies, n_hidden=2, labels=None, title=None):
     nx.draw_networkx_labels(graph, pos=pos, labels=node_labels,
                             font_size=6, alpha=0.7, ax=ax)
     ax.set_title(title)
-    ax.legend()
+    if any(labels):
+        ax.legend()
 
     nodes, locations = list(zip(*pos.items()))
     locations = np.array(locations)
@@ -67,4 +69,4 @@ def plot_assemblies(assemblies, n_hidden=2, labels=None, title=None):
                        capstyle='round', joinstyle='round')
         ax.add_patch(poly)
 
-    return ax
+    return ax, pos

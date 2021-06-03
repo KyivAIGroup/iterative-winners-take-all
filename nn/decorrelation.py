@@ -4,34 +4,18 @@ Learning the weights either for (x1, y1) or (x2, y2) should decorrelate y1 and y
 """
 
 import matplotlib.pyplot as plt
-import numpy as np
-from tqdm import trange
 import torch
 import torch.nn as nn
-
-from torchvision.datasets import MNIST
 from torch.utils.data import TensorDataset
-from mighty.monitor.monitor import MonitorEmbedding
+from tqdm import trange
+
 from constants import RESULTS_DIR
-
-# from kwta import kWTA, iWTA, update_weights, overlap, RESULTS_DIR, kWTA_different_k
-from nn.kwta import KWTANet, IterativeWTA, update_weights
-from nn.utils import sample_bernoulli, NoShuffleLoader
-
-
-from mighty.models import *
-from mighty.monitor.accuracy import AccuracyArgmax, AccuracyEmbedding
-from mighty.monitor.monitor import Monitor
-from mighty.monitor.mutual_info import *
-from mighty.trainer import *
-from mighty.utils.common import set_seed
-from mighty.utils.data import get_normalize_inverse, DataLoader, \
-    TransformDefault
+from mighty.loss import ContrastiveLossSampler
+from mighty.utils.data import DataLoader
 from mighty.utils.domain import MonitorLevel
-from mighty.loss import TripletLossSampler
-
+from nn.kwta import KWTANet, IterativeWTA, update_weights
 from nn.trainer import TrainerIWTA
-
+from nn.utils import sample_bernoulli, NoShuffleLoader
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.05, 0.05
@@ -48,14 +32,13 @@ def overlap2d(tensor):
     return (tensor[0] & tensor[1]).sum()
 
 
-class RandomDataset(TensorDataset):
-    def __init__(self, *args, **kwargs):
-        x12 = sample_bernoulli(s_x, shape=(2, N_x))
-        labels = torch.arange(2)
-        super().__init__(x12, labels)
-
-
 for repeat in trange(N_REPEATS):
+    class RandomDataset(TensorDataset):
+        def __init__(self, *args, **kwargs):
+            labels = torch.arange(2)
+            super().__init__(x12, labels)
+
+    x12 = sample_bernoulli(s_x, shape=(2, N_x))
     w_xy, w_xh, w_hy, w_hh, w_yy = {}, {}, {}, {}, {}
     for mode in stats.keys():
         w_xy[mode] = sample_bernoulli(s_w_xy, shape=(N_x, N_y))
@@ -67,9 +50,10 @@ for repeat in trange(N_REPEATS):
 
     data_loader = DataLoader(RandomDataset, transform=None,
                              loader_cls=NoShuffleLoader)
-    criterion = TripletLossSampler(nn.TripletMarginLoss())
+    criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0), pairs_multiplier=5)
     trainer = TrainerIWTA(model=iwta, criterion=criterion,
-                          data_loader=data_loader)
+                          data_loader=data_loader, verbosity=1)
+    trainer.monitor.advanced_monitoring(level=MonitorLevel.FULL)
     trainer.train(n_epochs=N_ITERS)
 
     x12, labels_unused = data_loader.sample()
