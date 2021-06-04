@@ -40,7 +40,7 @@ class WTAInterface(nn.Module):
         else:
             self.w_yh = nn.Parameter(w_yh, requires_grad=False)
 
-    def update_weights(self, h, y, n_choose=1):
+    def update_weights(self, h, y, n_choose=5):
         update_weights(self.w_hy, x_pre=h, x_post=y, n_choose=n_choose)
         if self.w_yy is not None:
             update_weights(self.w_yy, x_pre=y, x_post=y, n_choose=n_choose)

@@ -12,10 +12,12 @@ from mighty.monitor.monitor import MonitorEmbedding, ParamRecord
 
 class MonitorIWTA(MonitorEmbedding):
     pos = None
+    fixed = None
 
     def plot_assemblies(self, assemblies):
-        ax, self.pos = plot_assemblies(assemblies.cpu().T.numpy(),
-                                       pos=self.pos)
+        ax, self.pos, self.fixed = plot_assemblies(assemblies.cpu().T.numpy(),
+                                                   pos=self.pos,
+                                                   fixed=self.fixed)
         with io.BytesIO() as buff:
             ax.figure.savefig(buff, format='raw')
             buff.seek(0)

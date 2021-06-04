@@ -8,7 +8,8 @@ from matplotlib.patches import Polygon
 from scipy.spatial import ConvexHull
 
 
-def plot_assemblies(assemblies, n_hidden=2, pos=None, labels=None, title=None):
+def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
+                    title=None):
     # (N, samples)
     if isinstance(assemblies, np.ndarray):
         assemblies = [vec.nonzero()[0] for vec in assemblies.T]
@@ -31,7 +32,10 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, labels=None, title=None):
         graph.add_nodes_from(assembly)
         graph.add_edges_from(combinations(assembly, 2))
     node_labels = {node: ','.join(node_labels[node]) for node in graph.nodes}
-    pos = nx.spring_layout(graph, iterations=100, pos=pos)
+    if fixed is not None:
+        fixed = unique.intersection(fixed)
+    pos = nx.spring_layout(graph, iterations=100, pos=pos, fixed=fixed)
+    fixed = unique
 
     fig, ax = plt.subplots()
     cmap = plt.cm.get_cmap("hsv", len(assemblies) + 1)  # +1 is necessary
@@ -69,4 +73,4 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, labels=None, title=None):
                        capstyle='round', joinstyle='round')
         ax.add_patch(poly)
 
-    return ax, pos
+    return ax, pos, fixed
