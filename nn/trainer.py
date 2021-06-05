@@ -1,9 +1,11 @@
 import torch.nn as nn
 
-from mighty.trainer import TrainerEmbedding
+from mighty.trainer import TrainerEmbedding, TrainerGrad
 from mighty.utils.data import DataLoader
 from mighty.utils.stub import OptimizerStub
 from mighty.monitor.accuracy import AccuracyEmbedding
+from mighty.utils.var_online import MeanOnline
+from mighty.utils.signal import compute_sparsity
 
 from nn.monitor import MonitorIWTA
 from nn.kwta import WTAInterface
@@ -42,7 +44,7 @@ class TrainerIWTA(TrainerEmbedding):
 
     def _forward(self, batch):
         h, y = super()._forward(batch)
-        return y
+        return h, y
 
     def train_batch(self, batch):
         h, y = self.model(batch[0])
@@ -50,8 +52,38 @@ class TrainerIWTA(TrainerEmbedding):
         loss = self._get_loss(batch, y)
         return loss
 
+    def _init_online_measures(self):
+        online = super()._init_online_measures()
+        online['sparsity-h'] = MeanOnline()  # scalar
+        return online
+
     def _epoch_finished(self, loss):
         x, labels = self.data_loader.sample()
         h, y = self.model(x)
-        self.monitor.plot_assemblies(y)
-        super()._epoch_finished(loss)
+        self.monitor.plot_assemblies(h, name='h')
+        self.monitor.plot_assemblies(y, name='y')
+
+        self.monitor.update_sparsity(self.online['sparsity'].get_mean(),
+                                     mode='y')
+        self.monitor.update_sparsity(self.online['sparsity-h'].get_mean(),
+                                     mode='h')
+        self.monitor.update_l1_neuron_norm(self.online['l1_norm'].get_mean())
+        # mean and std can be Nones
+        mean, std = self.online['clusters'].get_mean_std()
+        self.monitor.clusters_heatmap(mean=mean, std=std)
+        self.monitor.embedding_hist(activations=mean)
+        TrainerGrad._epoch_finished(self, loss)
+
+    def _on_forward_pass_batch(self, batch, output, train):
+        h, y = output
+        if train:
+            sparsity_h = compute_sparsity(h.float())
+            self.online['sparsity-h'].update(sparsity_h.cpu())
+        super()._on_forward_pass_batch(batch, y, train)
+
+    def _get_loss(self, batch, output):
+        # In case of unsupervised learning, '_get_loss' is overridden
+        # accordingly.
+        input, labels = batch
+        h, y = output
+        return self.criterion(y, labels)

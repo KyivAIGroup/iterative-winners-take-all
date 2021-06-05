@@ -30,8 +30,8 @@ stats = {mode: torch.zeros((N_REPEATS, N_ITERS), dtype=torch.float32)
 class TrainerIWTADecorrelation(TrainerIWTA):
     def train_batch(self, batch):
         h, y = self.model(batch[0])
+        loss = self._get_loss(batch, (h, y))
         update_weights(self.model.w_hy, x_pre=h, x_post=y, n_choose=5)
-        loss = self._get_loss(batch, y)
         return loss
 
 
@@ -52,8 +52,9 @@ iwta = IterativeWTA(w_xy=w_xy['iWTA'], w_xh=w_xh['iWTA'], w_hy=w_hy['iWTA'])
 
 data_loader = DataLoader(RandomDataset, transform=None,
                          loader_cls=NoShuffleLoader)
-criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0), pairs_multiplier=5)
-trainer = TrainerIWTA(model=iwta, criterion=criterion,
-                      data_loader=data_loader, verbosity=1)
+criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0),
+                                   pairs_multiplier=5)
+trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
+                                   data_loader=data_loader, verbosity=1)
 trainer.monitor.advanced_monitoring(level=MonitorLevel.FULL)
 trainer.train(n_epochs=N_ITERS)

@@ -4,6 +4,7 @@ from sklearn.metrics import confusion_matrix
 import io
 import numpy as np
 import torch.nn as nn
+from collections import defaultdict
 
 from graph import plot_assemblies
 from mighty.monitor.accuracy import calc_accuracy
@@ -11,13 +12,14 @@ from mighty.monitor.monitor import MonitorEmbedding, ParamRecord
 
 
 class MonitorIWTA(MonitorEmbedding):
-    pos = None
-    fixed = None
+    pos = defaultdict(lambda: None)
+    fixed = defaultdict(lambda: None)
 
-    def plot_assemblies(self, assemblies):
-        ax, self.pos, self.fixed = plot_assemblies(assemblies.cpu().T.numpy(),
-                                                   pos=self.pos,
-                                                   fixed=self.fixed)
+    def plot_assemblies(self, assemblies, name=None):
+        ax, self.pos[name], self.fixed[name] = plot_assemblies(
+            assemblies.cpu().T.numpy(),
+            pos=self.pos[name],
+            fixed=self.fixed[name])
         with io.BytesIO() as buff:
             ax.figure.savefig(buff, format='raw')
             buff.seek(0)
@@ -25,8 +27,8 @@ class MonitorIWTA(MonitorEmbedding):
         w, h = ax.figure.bbox.bounds[2:]
         plt.close(ax.figure)
         image = data.reshape((int(h), int(w), -1)).transpose((2, 0, 1))
-        self.viz.image(image, win='assembly', opts=dict(
-            caption=f"Epoch {self.timer.epoch}",
+        self.viz.image(image, win=f'assembly-{name}', opts=dict(
+            caption=f"[name='{name}'] Epoch {self.timer.epoch}",
             store_history=True
         ))
 
@@ -66,20 +68,4 @@ class MonitorIWTA(MonitorEmbedding):
         """
         accuracy = calc_accuracy(labels_true, labels_pred)
         self.update_accuracy(accuracy=accuracy, mode=mode)
-        return accuracy
-        title = f"Confusion matrix '{mode}'"
-        if len(labels_true.unique()) <= self.n_classes_format_ytickstep_1:
-            # don't plot huge matrices
-            ticks = labels_true.unique().tolist()
-            tick_labels = list(map(str, ticks))
-            confusion = confusion_matrix(labels_true, labels_pred)
-            self.viz.heatmap(confusion, win=title, opts=dict(
-                title=title,
-                xlabel='Predicted label',
-                ylabel='True label',
-                xtickvals=ticks,
-                xticklabels=tick_labels,
-                ytickvals=ticks,
-                yticklabels=tick_labels
-            ))
         return accuracy
