@@ -13,15 +13,19 @@ from constants import RESULTS_DIR
 from mighty.loss import ContrastiveLossSampler
 from mighty.utils.data import DataLoader
 from mighty.utils.domain import MonitorLevel
-from nn.kwta import KWTANet, IterativeWTA, update_weights
+from nn.kwta import *
 from nn.trainer import TrainerIWTA
 from nn.utils import sample_bernoulli, NoShuffleLoader
 
-N_x, N_y, N_h = 100, 200, 200
-s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.05, 0.05
+# N_x, N_y, N_h = 100, 100, 100
+# s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.05, 0.05, 0.05, 0.05, 0.05, 0.05
+N_x = N_y = N_h = 200
+s_x = s_w_xy = s_w_xh = s_w_hy = s_w_hh = s_w_yy = 0.05
+s_w_hy = 0.01
+
 N_REPEATS, N_ITERS = 10, 50
 K_FIXED = int(0.15 * N_y)
-NUM_TO_LEARN = 5
+NUM_TO_LEARN = 50
 
 stats = {mode: torch.zeros((N_REPEATS, N_ITERS), dtype=torch.float32)
          for mode in ('kWTA-fixed-k', 'kWTA', 'iWTA', 'nonzero')}
@@ -56,5 +60,6 @@ criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0),
                                    pairs_multiplier=5)
 trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
-trainer.monitor.advanced_monitoring(level=MonitorLevel.FULL)
-trainer.train(n_epochs=N_ITERS)
+# trainer.monitor.advanced_monitoring(level=MonitorLevel.FULL)
+iwta.set_monitor(trainer.monitor)
+trainer.train(n_epochs=10)

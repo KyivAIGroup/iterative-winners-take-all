@@ -59,9 +59,12 @@ class TrainerIWTA(TrainerEmbedding):
 
     def _epoch_finished(self, loss):
         x, labels = self.data_loader.sample()
+        self.monitor.track_iwta = True
         h, y = self.model(x)
+        self.monitor.track_iwta = False
         self.monitor.plot_assemblies(h, name='h')
         self.monitor.plot_assemblies(y, name='y')
+        self.monitor.update_weight_sparsity(self.model.weight_sparsity())
 
         self.monitor.update_sparsity(self.online['sparsity'].get_mean(),
                                      mode='y')
@@ -87,3 +90,6 @@ class TrainerIWTA(TrainerEmbedding):
         input, labels = batch
         h, y = output
         return self.criterion(y, labels)
+
+    def training_finished(self):
+        self.monitor._plot_iwta_heatmap()

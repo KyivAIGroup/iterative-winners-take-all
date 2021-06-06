@@ -2,6 +2,18 @@ import torch
 import torch.nn as nn
 import warnings
 
+from mighty.utils.signal import compute_sparsity
+
+
+__all__ = [
+    "KWTAFunction",
+    "KWTANet",
+    "WTAInterface",
+    "IterativeWTA",
+    "IterativeWTASparse",
+    "update_weights"
+]
+
 
 class KWTAFunction(torch.autograd.Function):
     @staticmethod
@@ -39,11 +51,20 @@ class WTAInterface(nn.Module):
             self.w_yh = None
         else:
             self.w_yh = nn.Parameter(w_yh, requires_grad=False)
+        self.monitor = None
+
+    def set_monitor(self, monitor):
+        self.monitor = monitor
 
     def update_weights(self, h, y, n_choose=5):
         update_weights(self.w_hy, x_pre=h, x_post=y, n_choose=n_choose)
         if self.w_yy is not None:
             update_weights(self.w_yy, x_pre=y, x_post=y, n_choose=n_choose)
+
+    def weight_sparsity(self):
+        sparsity = {name: compute_sparsity(param.data.float())
+                    for name, param in self.named_parameters()}
+        return sparsity
 
 
 class KWTANet(WTAInterface):
@@ -87,6 +108,56 @@ class IterativeWTA(WTAInterface):
 
             h |= z_h
             y |= z_y
+
+            if self.monitor is not None:
+                self.monitor.iwta_iteration(z_h, z_y)
+
+        # TODO the same hack should be for 'h'
+        empty_trials = ~(y.any(dim=1))
+        if empty_trials.any():
+            # This is particularly wrong because y != y_kwta even when k=1
+            warnings.warn("iWTA resulted in a zero vector. "
+                          "Activating one neuron manually.")
+            h_kwta = KWTAFunction.apply(h0, 1)
+            y_kwta = KWTAFunction.apply(y0 - h_kwta @ self.w_hy, 1)
+            h[empty_trials] = h_kwta[empty_trials]
+            y[empty_trials] = y_kwta[empty_trials]
+
+        return h, y
+
+
+class IterativeWTASparse(IterativeWTA):
+
+    def forward(self, x):
+        x = torch.atleast_2d(x)
+        y0 = x @ self.w_xy
+        h0 = x @ self.w_xh
+        h = torch.zeros_like(h0, dtype=torch.int32)
+        y = torch.zeros_like(y0, dtype=torch.int32)
+        t_start = max(h0.max(), y0.max())
+        z_h_prev = torch.zeros_like(h)
+        z_y_prev = torch.zeros_like(y)
+        for threshold in range(t_start, 0, -1):
+            z_h = h0
+            if self.w_hh is not None:
+                z_h = z_h - z_h_prev @ self.w_hh
+            if self.w_yh is not None:
+                z_h = z_h + z_y_prev @ self.w_yh
+            z_h = (z_h >= threshold).int()
+
+            z_y = y0 - z_h @ self.w_hy
+            if self.w_yy is not None:
+                z_y += z_y_prev @ self.w_yy
+            z_y = (z_y >= threshold).int()
+
+            z_h_prev = z_h
+            z_y_prev = z_y
+            h |= z_h
+            y |= z_y
+
+            if self.monitor is not None:
+                # pass
+                self.monitor.iwta_iteration(z_h, z_y, id_=1)
 
         # TODO the same hack should be for 'h'
         empty_trials = ~(y.any(dim=1))
