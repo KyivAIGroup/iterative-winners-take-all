@@ -59,7 +59,7 @@ class TrainerIWTA(TrainerEmbedding):
 
     def _epoch_finished(self, loss):
         x, labels = self.data_loader.sample()
-        self.monitor.track_iwta = True
+        self.monitor.track_iwta = self.timer.epoch in (1, self.timer.n_epochs)
         h, y = self.model(x)
         self.monitor.track_iwta = False
         self.monitor.plot_assemblies(h, name='h')

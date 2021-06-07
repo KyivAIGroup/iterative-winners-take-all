@@ -40,7 +40,7 @@ class MonitorIWTA(MonitorEmbedding):
     def iwta_iteration(self, z_h, z_y, id_=0):
         if not self.track_iwta:
             return
-        # self._plot_iwta_scatter(z_h, z_y)
+        # self._plot_iwta_scatter(z_h, z_y, id_=id_)
         z_h = z_h[id_].cpu().type(torch.float32)
         z_y = z_y[id_].cpu().type(torch.float32)
         if len(self.iwta_activations) > 0:
@@ -61,15 +61,18 @@ class MonitorIWTA(MonitorEmbedding):
     def epoch_finished(self):
         super().epoch_finished()
         z_h, z_y = self.iwta_activations[-1]
-        self.iwta_activations.append([torch.zeros_like(z_h),
-                                      torch.zeros_like(z_y)])
+        if z_y.any() or z_h.any():
+            # don't add zero space many times
+            self.iwta_activations.append([torch.zeros_like(z_h),
+                                          torch.zeros_like(z_y)])
         self.iteration = 0
 
     def batch_finished(self, model):
         super().batch_finished(model)
 
-    def _plot_iwta_scatter(self, z_h, z_y):
+    def _plot_iwta_scatter(self, z_h, z_y, id_):
         for name, assembly in dict(z_h=z_h, z_y=z_y).items():
+            assembly = assembly[id_]
             size = assembly.size(0)
             assembly = assembly.nonzero(as_tuple=True)[0]
             xs = np.full(len(assembly), self.iteration, dtype=np.float32)
