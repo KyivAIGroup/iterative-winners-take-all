@@ -47,9 +47,10 @@ class TrainerIWTA(TrainerEmbedding):
         return h, y
 
     def train_batch(self, batch):
-        h, y = self.model(batch[0])
-        self.model.update_weights(h, y)
-        loss = self._get_loss(batch, y)
+        x, labels = batch
+        h, y = self.model(x)
+        self.model.update_weights(x, h, y)
+        loss = self._get_loss(batch, (h, y))
         return loss
 
     def _init_online_measures(self):

@@ -1,11 +1,14 @@
 import torch
 import torch.nn as nn
 import warnings
+import math
 
 from mighty.utils.signal import compute_sparsity
+from nn.utils import random_choice
 
 
 __all__ = [
+    "ParameterWithPermanence",
     "KWTAFunction",
     "KWTANet",
     "WTAInterface",
@@ -13,6 +16,47 @@ __all__ = [
     "IterativeWTASparse",
     "update_weights"
 ]
+
+
+class ParameterWithPermanence(nn.Parameter):
+    THRESHOLD = 0.7
+    INCREMENT = 0.01
+    DECREMENT_MUL = math.exp(-0.1)
+
+    @classmethod
+    def generate_sparse(cls, shape, sparsity: float):
+        permanence = torch.rand(shape) * cls.THRESHOLD
+        size = shape[0] * shape[1]
+        n_active = math.ceil(size * sparsity)
+        idx_active = torch.randperm(size)[:n_active]
+        permanence.view(-1)[idx_active] = (1. - cls.THRESHOLD) * torch.rand(
+            n_active) + cls.THRESHOLD
+        return ParameterWithPermanence(permanence)
+
+    def __new__(cls, permanence: torch.Tensor):
+        data = (permanence > cls.THRESHOLD).type(torch.int32)
+        param = super().__new__(cls, data, requires_grad=False)
+        param.permanence = permanence
+        return param
+
+    def __deepcopy__(self, memo):
+        if id(self) in memo:
+            return memo[id(self)]
+        else:
+            result = type(self)(self.permanence.clone(memory_format=torch.preserve_format))
+            memo[id(self)] = result
+            return result
+
+    def update(self, x_pre, x_post):
+        # update permanence and data
+        x_pre = torch.atleast_2d(x_pre)
+        x_post = torch.atleast_2d(x_post)
+        mask_keep = torch.ones_like(self.data, dtype=torch.bool)
+        for x, y in zip(x_pre, x_post):
+            self.permanence.addr_(x, y, alpha=self.INCREMENT)
+            mask_keep[torch.outer(x, y).bool()] = False
+        self.permanence[mask_keep] *= self.DECREMENT_MUL
+        self.data = (self.permanence > self.THRESHOLD).type(torch.int32)
 
 
 class KWTAFunction(torch.autograd.Function):
@@ -36,30 +80,31 @@ class KWTAFunction(torch.autograd.Function):
 class WTAInterface(nn.Module):
     def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None):
         super().__init__()
-        self.w_xy = nn.Parameter(w_xy, requires_grad=False)
-        self.w_xh = nn.Parameter(w_xh, requires_grad=False)
-        self.w_hy = nn.Parameter(w_hy, requires_grad=False)
-        if w_yy is None:
-            self.w_yy = None
-        else:
-            self.w_yy = nn.Parameter(w_yy, requires_grad=False)
-        if w_hh is None:
-            self.w_hh = None
-        else:
-            self.w_hh = nn.Parameter(w_hh, requires_grad=False)
-        if w_yh is None:
-            self.w_yh = None
-        else:
-            self.w_yh = nn.Parameter(w_yh, requires_grad=False)
+        self.w_xy = w_xy
+        self.w_xh = w_xh
+        self.w_hy = w_hy
+        self.w_yy = w_yy
+        self.w_hh = w_hh
+        self.w_yh = w_yh
         self.monitor = None
 
     def set_monitor(self, monitor):
         self.monitor = monitor
 
-    def update_weights(self, h, y, n_choose=5):
-        update_weights(self.w_hy, x_pre=h, x_post=y, n_choose=n_choose)
-        if self.w_yy is not None:
-            update_weights(self.w_yy, x_pre=y, x_post=y, n_choose=n_choose)
+    def update_weights(self, x, h, y, n_choose=1):
+        def update_weight(weight, x_pre, x_post):
+            if isinstance(weight, ParameterWithPermanence):
+                weight.update(x_pre=x_pre, x_post=x_post)
+            elif weight is not None:
+                update_weights(weight, x_pre=x_pre, x_post=x_post,
+                               n_choose=n_choose)
+
+        update_weight(self.w_xy, x_pre=x, x_post=y)
+        update_weight(self.w_xh, x_pre=x, x_post=h)
+        update_weight(self.w_hy, x_pre=h, x_post=y)
+        update_weight(self.w_yy, x_pre=y, x_post=y)
+        update_weight(self.w_hh, x_pre=h, x_post=h)
+        update_weight(self.w_yh, x_pre=y, x_post=h)
 
     def weight_sparsity(self):
         sparsity = {name: compute_sparsity(param.data.float())
@@ -174,10 +219,6 @@ class IterativeWTASparse(IterativeWTA):
 
 
 def update_weights(w, x_pre, x_post, n_choose=1):
-    def random_choice(vec):
-        idx = torch.randperm(vec.shape[0])[:n_choose]
-        return vec[idx]
-
     if x_pre.ndim == 2:
         for x, y in zip(x_pre, x_post):
             update_weights(w, x_pre=x, x_post=y, n_choose=n_choose)
@@ -192,6 +233,6 @@ def update_weights(w, x_pre, x_post, n_choose=1):
         warnings.warn("'x_post' is a zero vector")
         return
     n_choose = min(n_choose, len(x_pre_idx), len(x_post_idx))
-    idx_pre = random_choice(x_pre_idx)
-    idx_post = random_choice(x_post_idx)
+    idx_pre = random_choice(x_pre_idx, n_choose=n_choose)
+    idx_post = random_choice(x_post_idx, n_choose=n_choose)
     w[idx_pre, idx_post] = 1

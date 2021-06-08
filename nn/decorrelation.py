@@ -18,11 +18,13 @@ from nn.trainer import TrainerIWTA
 from nn.utils import sample_bernoulli, NoShuffleLoader
 
 # N_x, N_y, N_h = 100, 100, 100
-# s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.05, 0.05, 0.05, 0.05, 0.05, 0.05
 N_x = N_y = N_h = 200
-s_x = s_w_xy = s_w_xh = s_w_hy = s_w_hh = s_w_yy = 0.05
-s_w_hy = 0.01
+s_x = 0.1
+s_w_xh = 0.05
+s_w_xy = 0.05
+s_w_hy = 0.1
 
+WITH_PERMANENCE = True
 N_REPEATS, N_ITERS = 10, 50
 K_FIXED = int(0.15 * N_y)
 NUM_TO_LEARN = 50
@@ -33,9 +35,14 @@ stats = {mode: torch.zeros((N_REPEATS, N_ITERS), dtype=torch.float32)
 
 class TrainerIWTADecorrelation(TrainerIWTA):
     def train_batch(self, batch):
-        h, y = self.model(batch[0])
+        return super().train_batch(batch)
+        x, labels = batch
+        h, y = self.model(x)
         loss = self._get_loss(batch, (h, y))
-        update_weights(self.model.w_hy, x_pre=h, x_post=y, n_choose=5)
+        if isinstance(self.model.w_hy, ParameterWithPermanence):
+            self.model.w_hy.update(x_pre=h, x_post=y)
+        else:
+            update_weights(self.model.w_hy, x_pre=h, x_post=y, n_choose=NUM_TO_LEARN)
         return loss
 
 
@@ -44,15 +51,20 @@ class RandomDataset(TensorDataset):
         labels = torch.arange(2)
         super().__init__(x12, labels)
 
-x12 = sample_bernoulli(s_x, shape=(2, N_x))
+x12 = sample_bernoulli((2, N_x), p=s_x)
 w_xy, w_xh, w_hy, w_hh, w_yy = {}, {}, {}, {}, {}
 for mode in stats.keys():
-    w_xy[mode] = sample_bernoulli(s_w_xy, shape=(N_x, N_y))
-    w_xh[mode] = sample_bernoulli(s_w_xh, shape=(N_x, N_h))
-    w_hy[mode] = sample_bernoulli(s_w_hy, shape=(N_h, N_y))
+    if WITH_PERMANENCE:
+        w_xy[mode] = ParameterWithPermanence.generate_sparse((N_x, N_y), sparsity=s_w_xy)
+        w_xh[mode] = ParameterWithPermanence.generate_sparse((N_x, N_h), sparsity=s_w_xh)
+        w_hy[mode] = ParameterWithPermanence.generate_sparse((N_h, N_y), sparsity=s_w_hy)
+    else:
+        w_xy[mode] = nn.Parameter(sample_bernoulli((N_x, N_y), p=s_w_xy), requires_grad=False)
+        w_xh[mode] = nn.Parameter(sample_bernoulli((N_x, N_h), p=s_w_xh), requires_grad=False)
+        w_hy[mode] = nn.Parameter(sample_bernoulli((N_h, N_y), p=s_w_hy), requires_grad=False)
 kwta_variable = KWTANet(w_xy=w_xy['kWTA'], w_xh=w_xh['kWTA'], w_hy=w_hy['kWTA'], kh=K_FIXED)
 kwta_fixed = KWTANet(w_xy=w_xy['kWTA-fixed-k'], w_xh=w_xh['kWTA-fixed-k'], w_hy=w_hy['kWTA-fixed-k'], kh=K_FIXED, ky=K_FIXED)
-iwta = IterativeWTA(w_xy=w_xy['iWTA'], w_xh=w_xh['iWTA'], w_hy=w_hy['iWTA'])
+iwta = IterativeWTASparse(w_xy=w_xy['iWTA'], w_xh=w_xh['iWTA'], w_hy=w_hy['iWTA'])
 
 data_loader = DataLoader(RandomDataset, transform=None,
                          loader_cls=NoShuffleLoader)
