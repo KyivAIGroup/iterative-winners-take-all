@@ -29,7 +29,7 @@ class MonitorIWTA(MonitorEmbedding):
             ax.figure.savefig(buff, format='raw')
             buff.seek(0)
             data = np.frombuffer(buff.getvalue(), dtype=np.uint8)
-        w, h = ax.figure.bbox.bounds[2:]
+        w, h = ax.figure.canvas.get_width_height()
         plt.close(ax.figure)
         image = data.reshape((int(h), int(w), -1)).transpose((2, 0, 1))
         self.viz.image(image, win=f'assembly-{name}', opts=dict(

@@ -19,31 +19,26 @@ __all__ = [
 
 
 class ParameterWithPermanence(nn.Parameter):
-    THRESHOLD = 0.7
-    INCREMENT = 0.01
-    DECREMENT_MUL = math.exp(-0.1)
+    LEARNING_RATE = 0.01
 
-    @classmethod
-    def generate_sparse(cls, shape, sparsity: float):
-        permanence = torch.rand(shape) * cls.THRESHOLD
-        size = shape[0] * shape[1]
-        n_active = math.ceil(size * sparsity)
-        idx_active = torch.randperm(size)[:n_active]
-        permanence.view(-1)[idx_active] = (1. - cls.THRESHOLD) * torch.rand(
-            n_active) + cls.THRESHOLD
-        return ParameterWithPermanence(permanence)
+    def __new__(cls, permanence: torch.Tensor, sparsity: float):
+        n_active = math.ceil(permanence.nelement() * sparsity)
+        presum = permanence.sum(dim=0, keepdim=True)
+        permanence /= presum
+        data = torch.zeros_like(permanence, dtype=torch.int32)
+        data.view(-1)[permanence.view(-1).topk(n_active).indices] = 1
 
-    def __new__(cls, permanence: torch.Tensor):
-        data = (permanence > cls.THRESHOLD).type(torch.int32)
         param = super().__new__(cls, data, requires_grad=False)
         param.permanence = permanence
+        param.n_active = n_active
         return param
 
     def __deepcopy__(self, memo):
         if id(self) in memo:
             return memo[id(self)]
         else:
-            result = type(self)(self.permanence.clone(memory_format=torch.preserve_format))
+            sparsity = self.n_active / self.data.nelement()
+            result = type(self)(self.permanence.clone(memory_format=torch.preserve_format), sparsity)
             memo[id(self)] = result
             return result
 
@@ -51,12 +46,16 @@ class ParameterWithPermanence(nn.Parameter):
         # update permanence and data
         x_pre = torch.atleast_2d(x_pre)
         x_post = torch.atleast_2d(x_post)
-        mask_keep = torch.ones_like(self.data, dtype=torch.bool)
         for x, y in zip(x_pre, x_post):
-            self.permanence.addr_(x, y, alpha=self.INCREMENT)
-            mask_keep[torch.outer(x, y).bool()] = False
-        self.permanence[mask_keep] *= self.DECREMENT_MUL
-        self.data = (self.permanence > self.THRESHOLD).type(torch.int32)
+            self.permanence.addr_(x, y, alpha=self.LEARNING_RATE)
+        self.normalize()
+
+    def normalize(self):
+        presum = self.permanence.sum(dim=0, keepdim=True)
+        self.permanence /= presum
+        perm = self.permanence.view(-1)
+        self.data.zero_()
+        self.data.view(-1)[perm.topk(self.n_active).indices] = 1
 
 
 class KWTAFunction(torch.autograd.Function):
@@ -137,7 +136,7 @@ class IterativeWTA(WTAInterface):
         h0 = x @ self.w_xh
         h = torch.zeros_like(h0, dtype=torch.int32)
         y = torch.zeros_like(y0, dtype=torch.int32)
-        t_start = max(h0.max(), y0.max())
+        t_start = max(h0.max().item(), y0.max().item())
         for threshold in range(t_start, 0, -1):
             z_h = h0
             if self.w_hh is not None:
@@ -179,7 +178,7 @@ class IterativeWTASparse(IterativeWTA):
         h0 = x @ self.w_xh
         h = torch.zeros_like(h0, dtype=torch.int32)
         y = torch.zeros_like(y0, dtype=torch.int32)
-        t_start = max(h0.max(), y0.max())
+        t_start = max(h0.max().item(), y0.max().item())
         z_h_prev = torch.zeros_like(h)
         z_y_prev = torch.zeros_like(y)
         for threshold in range(t_start, 0, -1):
@@ -201,7 +200,6 @@ class IterativeWTASparse(IterativeWTA):
             y |= z_y
 
             if self.monitor is not None:
-                # pass
                 self.monitor.iwta_iteration(z_h, z_y, id_=1)
 
         # TODO the same hack should be for 'h'
