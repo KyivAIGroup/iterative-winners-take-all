@@ -21,7 +21,7 @@ __all__ = [
 class ParameterWithPermanence(nn.Parameter):
     LEARNING_RATE = 0.01
 
-    def __new__(cls, permanence: torch.Tensor, sparsity: float):
+    def __new__(cls, permanence: torch.Tensor, sparsity: float, learn=True):
         n_active = math.ceil(permanence.nelement() * sparsity)
         presum = permanence.sum(dim=0, keepdim=True)
         permanence /= presum
@@ -31,18 +31,34 @@ class ParameterWithPermanence(nn.Parameter):
         param = super().__new__(cls, data, requires_grad=False)
         param.permanence = permanence
         param.n_active = n_active
+        param.learn = learn
         return param
+
+    @property
+    def sparsity(self):
+        return self.n_active / self.data.nelement()
+
+    def __repr__(self):
+        shape = self.data.shape
+        s = f"{shape[0]} -> {shape[1]}"
+        if self.learn:
+            s = f"[learnable] {s}"
+        else:
+            s = f"[fixed] {s}"
+        return s
 
     def __deepcopy__(self, memo):
         if id(self) in memo:
             return memo[id(self)]
         else:
-            sparsity = self.n_active / self.data.nelement()
-            result = type(self)(self.permanence.clone(memory_format=torch.preserve_format), sparsity)
+            result = type(self)(self.permanence.clone(memory_format=torch.preserve_format), self.sparsity, self.learn)
             memo[id(self)] = result
             return result
 
     def update(self, x_pre, x_post):
+        if not self.learn:
+            # not learnable
+            return
         # update permanence and data
         x_pre = torch.atleast_2d(x_pre)
         x_post = torch.atleast_2d(x_post)
@@ -86,6 +102,10 @@ class WTAInterface(nn.Module):
         self.w_hh = w_hh
         self.w_yh = w_yh
         self.monitor = None
+
+    def extra_repr(self) -> str:
+        s = [f"{name}: {repr(param)}" for name, param in self.named_parameters()]
+        return '\n'.join(s)
 
     def set_monitor(self, monitor):
         self.monitor = monitor

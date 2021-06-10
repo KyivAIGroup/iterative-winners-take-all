@@ -19,7 +19,6 @@ class TrainerIWTA(TrainerEmbedding):
                  model: nn.Module,
                  criterion: nn.Module,
                  data_loader: DataLoader,
-                 env_suffix='',
                  **kwargs):
         super().__init__(model=model,
                          criterion=criterion,
@@ -27,7 +26,6 @@ class TrainerIWTA(TrainerEmbedding):
                          optimizer=OptimizerStub(),
                          scheduler=None,
                          accuracy_measure=AccuracyEmbedding(cache=True),
-                         env_suffix=env_suffix,
                          **kwargs)
 
     def _init_monitor(self, mutual_info):
@@ -63,8 +61,8 @@ class TrainerIWTA(TrainerEmbedding):
         self.monitor.track_iwta = self.timer.epoch in (1, self.timer.n_epochs)
         h, y = self.model(x)
         self.monitor.track_iwta = False
-        self.monitor.plot_assemblies(h, name='h')
-        self.monitor.plot_assemblies(y, name='y')
+        self.monitor.plot_assemblies(h, name='h', labels=labels)
+        self.monitor.plot_assemblies(y, name='y', labels=labels)
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
 
         self.monitor.update_sparsity(self.online['sparsity'].get_mean(),

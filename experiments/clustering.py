@@ -1,10 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.spatial.distance import pdist, squareform
 from tqdm import trange
 
-from kwta import iWTA, update_weights, kWTA, kWTA_different_k
 from constants import RESULTS_DIR
+from kwta import iWTA, update_weights, kWTA, kWTA_different_k
+from utils import compute_discriminative_factor
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.1, 0.02
@@ -14,7 +14,7 @@ NUM_TO_LEARN = 2
 N_SAMPLES_PER_CLASS = 10
 
 centroids = np.random.binomial(1, s_x, size=(N_x, 2))
-centroids = centroids[:, centroids.any(axis=0)]
+assert centroids.any(axis=0).all(), "Pick another seed"
 n_classes = centroids.shape[1]
 
 xs = np.repeat(centroids, repeats=N_SAMPLES_PER_CLASS, axis=1)
@@ -27,20 +27,6 @@ stats = {
     for mode in ('iWTA', 'kWTA', 'kWTA-fixed-k')
 }
 n_active = np.zeros((N_REPEATS, N_ITERS), dtype=np.float32)
-
-
-def compute_discriminative_factor(tensor, labels):
-    dist = pdist(tensor.T)
-    dist = squareform(dist)
-    factor = []
-    for label in np.unique(labels):
-        mask_same = labels == label
-        dist_same = dist[mask_same][:, mask_same]
-        dist_other = dist[mask_same][:, ~mask_same]
-        dist_same = squareform(dist_same).mean()
-        factor.append(dist_other / dist_same)
-    factor = np.mean(factor)
-    return factor
 
 
 for experiment in trange(N_REPEATS):
@@ -71,9 +57,9 @@ for experiment in trange(N_REPEATS):
                                   ks=n_active_batch)
         n_active[experiment, epoch] = n_active_batch.mean()
 
-        stats['iwta'][experiment, epoch] = compute_discriminative_factor(y_batch, labels)
-        stats['kwta'][experiment, epoch] = compute_discriminative_factor(y_kwta, labels)
-        stats['kwta-fixed-k'][experiment, epoch] = compute_discriminative_factor(y_kwta_fixed_k, labels)
+        stats['iwta'][experiment, epoch] = compute_discriminative_factor(y_batch.T, labels)
+        stats['kwta'][experiment, epoch] = compute_discriminative_factor(y_kwta.T, labels)
+        stats['kwta-fixed-k'][experiment, epoch] = compute_discriminative_factor(y_kwta_fixed_k.T, labels)
 
 colormap = {
     'iwta': 'green',

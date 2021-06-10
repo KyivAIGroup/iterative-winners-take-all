@@ -1,10 +1,10 @@
-import matplotlib.pyplot as plt
-import torch
-from sklearn.metrics import confusion_matrix
-import io
-import numpy as np
-import torch.nn as nn
 from collections import defaultdict
+
+import io
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+import torch.nn as nn
 
 from graph import plot_assemblies
 from mighty.monitor.accuracy import calc_accuracy
@@ -18,13 +18,23 @@ class MonitorIWTA(MonitorEmbedding):
     track_iwta = False
     iwta_activations = []
 
-    def plot_assemblies(self, assemblies, name=None):
+    def plot_assemblies(self, assemblies, name=None, labels=None):
+        if labels is not None:
+            # take at most 2 classes 2 samples each
+            idx = []
+            for class_id in labels.unique()[:2]:
+                take = (labels == class_id).nonzero(as_tuple=True)[0][:2]
+                idx.extend(take.tolist())
+            assemblies = assemblies[idx]
+            labels = labels[idx]
         nonzero = [vec.nonzero(as_tuple=True)[0].numpy()
                    for vec in assemblies.cpu()]
         ax, self.pos[name], self.fixed[name] = plot_assemblies(
             nonzero,
             pos=self.pos[name],
-            fixed=self.fixed[name])
+            fixed=self.fixed[name],
+            labels=labels
+        )
         with io.BytesIO() as buff:
             ax.figure.savefig(buff, format='raw')
             buff.seek(0)
@@ -47,6 +57,8 @@ class MonitorIWTA(MonitorEmbedding):
             z_h_prev, z_y_prev = self.iwta_activations[-1]
             z_h[z_h_prev.nonzero(as_tuple=True)] = 0.5
             z_y[z_y_prev.nonzero(as_tuple=True)] = 0.5
+            z_h_prev[((z_h_prev == 1) & (z_h == 0)).nonzero(as_tuple=True)] = np.nan
+            z_y_prev[((z_y_prev == 1) & (z_y == 0)).nonzero(as_tuple=True)] = np.nan
         self.iwta_activations.append([z_h, z_y])
 
     def update_weight_sparsity(self, sparsity: dict):
@@ -129,3 +141,14 @@ class MonitorIWTA(MonitorEmbedding):
         accuracy = calc_accuracy(labels_true, labels_pred)
         # self.update_accuracy(accuracy=accuracy, mode=mode)
         return accuracy
+
+    def update_weight_histogram(self):
+        for name, param_record in self.param_records.items():
+            permanence = getattr(param_record.param, "permanence")
+            if permanence is None:
+                continue
+            self.viz.histogram(X=permanence.view(-1), win=name, opts=dict(
+                xlabel='Permanence',
+                ylabel='# bins (distribution)',
+                title=name,
+            ))

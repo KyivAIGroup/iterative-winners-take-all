@@ -1,4 +1,6 @@
 from collections import defaultdict
+
+import torch
 from itertools import combinations
 
 import matplotlib.pyplot as plt
@@ -20,7 +22,9 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
         # do nothing
         return
     if labels is None:
-        labels = [None for _ in assemblies]
+        labels = tuple(range(len(assemblies)))
+    elif isinstance(labels, torch.Tensor):
+        labels = labels.tolist()
     graph = nx.Graph()
     node_labels = defaultdict(list)
     for class_id, assembly in enumerate(assemblies, start=1):
@@ -34,7 +38,7 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
     node_labels = {node: ','.join(node_labels[node]) for node in graph.nodes}
     if fixed is not None:
         fixed = unique.intersection(fixed)
-    pos = nx.spring_layout(graph, iterations=100, pos=pos, fixed=fixed)
+    pos = nx.spring_layout(graph, iterations=100, pos=pos, fixed=None)
     fixed = unique
 
     fig, ax = plt.subplots()
@@ -47,8 +51,7 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
     nx.draw_networkx_labels(graph, pos=pos, labels=node_labels,
                             font_size=6, alpha=0.7, ax=ax)
     ax.set_title(title)
-    if any(labels):
-        ax.legend()
+    ax.legend()
 
     nodes, locations = list(zip(*pos.items()))
     locations = np.array(locations)
