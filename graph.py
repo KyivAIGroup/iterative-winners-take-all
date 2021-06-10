@@ -27,11 +27,11 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
         labels = labels.tolist()
     graph = nx.Graph()
     node_labels = defaultdict(list)
-    for class_id, assembly in enumerate(assemblies, start=1):
+    for i, assembly in enumerate(assemblies):
         hidden_idx = range(hidden_start, hidden_start + n_hidden)
         hidden_start += n_hidden
         for node in assembly:
-            node_labels[node].append(str(class_id))
+            node_labels[node].append(str(labels[i]))
         assembly = np.r_[assembly, hidden_idx]
         graph.add_nodes_from(assembly)
         graph.add_edges_from(combinations(assembly, 2))
@@ -43,11 +43,12 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
 
     fig, ax = plt.subplots()
     cmap = plt.cm.get_cmap("hsv", len(assemblies) + 1)  # +1 is necessary
-    colors = np.array([cmap(i) for i in range(len(assemblies))])
-    for class_id, assembly in enumerate(assemblies):
+    colors = np.array([cmap(i) for i in range(len(set(labels)))])
+    for i, assembly in enumerate(assemblies):
+        class_id = labels[i]
         nx.draw_networkx_nodes(graph, pos=pos, nodelist=assembly,
                                node_color=[colors[class_id]], alpha=0.2,
-                               label=labels[class_id], ax=ax)
+                               label=class_id, ax=ax)
     nx.draw_networkx_labels(graph, pos=pos, labels=node_labels,
                             font_size=6, alpha=0.7, ax=ax)
     ax.set_title(title)
@@ -58,7 +59,7 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
     argsort = np.argsort(nodes)
     locations = locations[argsort]
     nodes = np.take(nodes, argsort)
-    for class_id, assembly in enumerate(assemblies):
+    for i, assembly in enumerate(assemblies):
         if len(assembly) < 3:
             # not enough points to construct a convex hull
             continue
@@ -72,7 +73,7 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
         hull_points = hull_points[0::2]  # Deleting duplicates
         hull_points = 1.2 * (np.array(hull_points) - cent) + cent
         poly = Polygon(hull_points,
-                       facecolor=colors[class_id], alpha=0.1,
+                       facecolor=colors[labels[i]], alpha=0.1,
                        capstyle='round', joinstyle='round')
         ax.add_patch(poly)
 

@@ -1,14 +1,17 @@
 import torch.nn as nn
+import torch
 
 from mighty.trainer import TrainerEmbedding, TrainerGrad
 from mighty.utils.data import DataLoader
 from mighty.utils.stub import OptimizerStub
 from mighty.monitor.accuracy import AccuracyEmbedding
 from mighty.utils.var_online import MeanOnline
+from mighty.utils.common import clone_cpu
 from mighty.utils.signal import compute_sparsity
 
 from nn.monitor import MonitorIWTA
 from nn.kwta import WTAInterface
+from utils import compute_discriminative_factor
 
 
 class TrainerIWTA(TrainerEmbedding):
@@ -27,6 +30,21 @@ class TrainerIWTA(TrainerEmbedding):
                          scheduler=None,
                          accuracy_measure=AccuracyEmbedding(cache=True),
                          **kwargs)
+        self.mutual_info.save_activations = self.mi_save_activations_y
+        self.cached_labels = []
+        self.cached_output = []
+
+    def mi_save_activations_y(self, module, tin, tout):
+        """
+        A hook to save the activates at a forward pass.
+        """
+        if not self.mutual_info.is_updating:
+            return
+        h, y = tout
+        layer_name = self.mutual_info.layer_to_name[module]
+        tout_clone = clone_cpu(y.detach().float())
+        tout_clone = tout_clone.flatten(start_dim=1)
+        self.mutual_info.activations[layer_name].append(tout_clone)
 
     def _init_monitor(self, mutual_info):
         monitor = MonitorIWTA(
@@ -56,14 +74,32 @@ class TrainerIWTA(TrainerEmbedding):
         online['sparsity-h'] = MeanOnline()  # scalar
         return online
 
+    def training_started(self):
+        x, labels = self.data_loader.sample()
+        h, y = self.model(x)
+        self.monitor.update_pairwise_similarity(x, labels, name='x')
+        self.monitor.update_pairwise_similarity(y, labels, name='y')
+
+    def update_discriminative_factor(self):
+        if len(self.cached_labels) == 0:
+            return
+        labels_true = torch.cat(self.cached_labels).numpy()
+        output = torch.cat(self.cached_output).numpy()
+        factor = compute_discriminative_factor(output, labels_true)
+        self.monitor.update_discriminative_factor(factor)
+        self.cached_output.clear()
+        self.cached_labels.clear()
+
     def _epoch_finished(self, loss):
         x, labels = self.data_loader.sample()
         self.monitor.track_iwta = self.timer.epoch in (1, self.timer.n_epochs)
         h, y = self.model(x)
         self.monitor.track_iwta = False
-        self.monitor.plot_assemblies(h, name='h', labels=labels)
-        self.monitor.plot_assemblies(y, name='y', labels=labels)
+        self.monitor.plot_assemblies(h, labels, name='h')
+        self.monitor.plot_assemblies(y, labels, name='y')
+        self.monitor.update_pairwise_similarity(y, labels, name='y')
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
+        self.update_discriminative_factor()
 
         self.monitor.update_sparsity(self.online['sparsity'].get_mean(),
                                      mode='y')
@@ -79,6 +115,9 @@ class TrainerIWTA(TrainerEmbedding):
     def _on_forward_pass_batch(self, batch, output, train):
         h, y = output
         if train:
+            x, labels = batch
+            self.cached_labels.append(labels)
+            self.cached_output.append(y)
             sparsity_h = compute_sparsity(h.float())
             self.online['sparsity-h'].update(sparsity_h.cpu())
         super()._on_forward_pass_batch(batch, y, train)

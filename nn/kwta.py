@@ -4,7 +4,7 @@ import warnings
 import math
 
 from mighty.utils.signal import compute_sparsity
-from nn.utils import random_choice
+from nn.nn_utils import random_choice
 
 
 __all__ = [
@@ -19,7 +19,7 @@ __all__ = [
 
 
 class ParameterWithPermanence(nn.Parameter):
-    LEARNING_RATE = 0.01
+    LEARNING_RATE = 0.001
 
     def __new__(cls, permanence: torch.Tensor, sparsity: float, learn=True):
         n_active = math.ceil(permanence.nelement() * sparsity)

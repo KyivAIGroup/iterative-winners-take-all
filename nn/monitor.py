@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from graph import plot_assemblies
 from mighty.monitor.accuracy import calc_accuracy
@@ -18,7 +19,7 @@ class MonitorIWTA(MonitorEmbedding):
     track_iwta = False
     iwta_activations = []
 
-    def plot_assemblies(self, assemblies, name=None, labels=None):
+    def plot_assemblies(self, assemblies, labels=None, name=None):
         if labels is not None:
             # take at most 2 classes 2 samples each
             idx = []
@@ -79,9 +80,6 @@ class MonitorIWTA(MonitorEmbedding):
                                           torch.zeros_like(z_y)])
         self.iteration = 0
 
-    def batch_finished(self, model):
-        super().batch_finished(model)
-
     def _plot_iwta_scatter(self, z_h, z_y, id_):
         for name, assembly in dict(z_h=z_h, z_y=z_y).items():
             assembly = assembly[id_]
@@ -139,7 +137,7 @@ class MonitorIWTA(MonitorEmbedding):
 
     def update_accuracy_epoch(self, labels_pred, labels_true, mode):
         accuracy = calc_accuracy(labels_true, labels_pred)
-        # self.update_accuracy(accuracy=accuracy, mode=mode)
+        self.update_accuracy(accuracy=accuracy, mode=mode)
         return accuracy
 
     def update_weight_histogram(self):
@@ -149,6 +147,33 @@ class MonitorIWTA(MonitorEmbedding):
                 continue
             self.viz.histogram(X=permanence.view(-1), win=name, opts=dict(
                 xlabel='Permanence',
-                ylabel='# bins (distribution)',
+                ylabel='Count',
                 title=name,
             ))
+
+    def update_pairwise_similarity(self, tensor, labels, name=''):
+        tensor = tensor.float()
+        for label in labels.unique().tolist():
+            t = tensor[labels == label]
+            n_elem = len(t)
+            if n_elem == 1:
+                continue
+            cos = F.cosine_similarity(t.unsqueeze(1), t.unsqueeze(0), dim=2)
+            ii, jj = torch.triu_indices(row=n_elem, col=n_elem, offset=1)
+            cos = cos[ii, jj]
+            win = f"{name} label={label}"
+            self.viz.histogram(X=cos, win=win, opts=dict(
+                xlabel='Cosine similarity',
+                ylabel='Count',
+                numbins=20,
+                xtickmin=0,
+                xtickmax=1,
+                title=win,
+            ))
+
+    def update_discriminative_factor(self, factor: float):
+        self.viz.line_update(y=factor, opts=dict(
+            xlabel='Epoch',
+            ylabel='dist-other / dist-same',
+            title="Clustering discriminative factor",
+        ))
