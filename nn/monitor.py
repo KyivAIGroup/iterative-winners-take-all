@@ -52,8 +52,8 @@ class MonitorIWTA(MonitorEmbedding):
         if not self.track_iwta:
             return
         # self._plot_iwta_scatter(z_h, z_y, id_=id_)
-        z_h = z_h[id_].cpu().type(torch.float32)
-        z_y = z_y[id_].cpu().type(torch.float32)
+        z_h = z_h[id_].detach().cpu().type(torch.float32).clone()
+        z_y = z_y[id_].detach().cpu().type(torch.float32).clone()
         if len(self.iwta_activations) > 0:
             z_h_prev, z_y_prev = self.iwta_activations[-1]
             z_h[z_h_prev.nonzero(as_tuple=True)] = 0.5

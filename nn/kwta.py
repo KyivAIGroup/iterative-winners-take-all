@@ -1,11 +1,11 @@
+import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import warnings
-import math
 
 from mighty.utils.signal import compute_sparsity
 from nn.nn_utils import random_choice
-
 
 __all__ = [
     "ParameterWithPermanence",
@@ -14,6 +14,7 @@ __all__ = [
     "WTAInterface",
     "IterativeWTA",
     "IterativeWTASparse",
+    "IterativeWTASoft",
     "update_weights"
 ]
 
@@ -188,6 +189,44 @@ class IterativeWTA(WTAInterface):
             y[empty_trials] = y_kwta[empty_trials]
 
         return h, y
+
+
+class IterativeWTASoft(IterativeWTA):
+    def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None, hardness=1):
+        super().__init__(w_xy, w_xh, w_hy, w_yy=w_yy, w_hh=w_hh, w_yh=w_yh)
+        for p in self.parameters():
+            delattr(p, 'permanence')
+            p.data = p.data.float()
+            p.requires_grad_(True)
+        self.hardness = hardness
+
+    def forward(self, x):
+        x = torch.atleast_2d(x).float()
+        y0 = x @ self.w_xy
+        h0 = x @ self.w_xh
+        z_y = torch.zeros_like(y0)
+        t_start = int(max(h0.max().item(), y0.max().item()))
+        for threshold in range(t_start, 0, -1):
+            z_h = h0
+            if self.w_hh is not None:
+                z_h = z_h - z_h @ self.w_hh
+            if self.w_yh is not None:
+                z_h = z_h + z_y @ self.w_yh
+            z_h = (z_h >= threshold).float()
+
+            z_y = y0 - z_h @ self.w_hy
+            if self.w_yy is not None:
+                z_y = z_y + z_y @ self.w_yy
+            if self.training and threshold == 1:
+                z_y = self.hardness * (z_y - threshold)
+                z_y = F.hardsigmoid(z_y, inplace=True)
+            else:
+                z_y = (z_y >= threshold).float()
+
+            if self.monitor is not None:
+                self.monitor.iwta_iteration(z_h, z_y)
+
+        return z_h, z_y
 
 
 class IterativeWTASparse(IterativeWTA):

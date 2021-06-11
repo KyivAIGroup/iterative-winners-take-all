@@ -1,16 +1,15 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
 
-from mighty.trainer import TrainerEmbedding, TrainerGrad
-from mighty.utils.data import DataLoader
-from mighty.utils.stub import OptimizerStub
 from mighty.monitor.accuracy import AccuracyEmbedding
-from mighty.utils.var_online import MeanOnline
+from mighty.trainer import TrainerEmbedding, TrainerGrad
 from mighty.utils.common import clone_cpu
+from mighty.utils.data import DataLoader
 from mighty.utils.signal import compute_sparsity
-
+from mighty.utils.stub import OptimizerStub
+from mighty.utils.var_online import MeanOnline
+from nn.kwta import WTAInterface, IterativeWTASoft
 from nn.monitor import MonitorIWTA
-from nn.kwta import WTAInterface
 from utils import compute_discriminative_factor
 
 
@@ -22,12 +21,12 @@ class TrainerIWTA(TrainerEmbedding):
                  model: nn.Module,
                  criterion: nn.Module,
                  data_loader: DataLoader,
+                 optimizer=OptimizerStub(),
                  **kwargs):
         super().__init__(model=model,
                          criterion=criterion,
                          data_loader=data_loader,
-                         optimizer=OptimizerStub(),
-                         scheduler=None,
+                         optimizer=optimizer,
                          accuracy_measure=AccuracyEmbedding(cache=True),
                          **kwargs)
         self.mutual_info.save_activations = self.mi_save_activations_y
@@ -65,8 +64,12 @@ class TrainerIWTA(TrainerEmbedding):
     def train_batch(self, batch):
         x, labels = batch
         h, y = self.model(x)
-        self.model.update_weights(x, h, y)
         loss = self._get_loss(batch, (h, y))
+        if isinstance(self.model, IterativeWTASoft):
+            loss.backward()
+            self.optimizer.step(closure=None)
+        else:
+            self.model.update_weights(x, h, y)
         return loss
 
     def _init_online_measures(self):
