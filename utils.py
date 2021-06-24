@@ -24,9 +24,15 @@ def compute_discriminative_factor(array, labels):
     factor = []
     for label in np.unique(labels):
         mask_same = labels == label
+        if mask_same.sum() == 1:
+            # empty dist_same
+            continue
         dist_same = dist[mask_same][:, mask_same]
         dist_other = dist[mask_same][:, ~mask_same]
+        # squareform excludes zeros on the main diagonal of dist_same
         dist_same = squareform(dist_same).mean()
         factor.append(dist_other / dist_same)
+    if len(factor) == 0:
+        return None
     factor = np.mean(factor)
     return factor

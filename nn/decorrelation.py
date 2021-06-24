@@ -12,7 +12,7 @@ from mighty.utils.common import set_seed
 from mighty.utils.data import DataLoader
 from nn.kwta import *
 from nn.trainer import TrainerIWTA
-from nn.utils import sample_bernoulli, NoShuffleLoader
+from nn.nn_utils import sample_bernoulli, NoShuffleLoader
 
 set_seed(0)
 
@@ -55,7 +55,8 @@ else:
     w_yy = None
     w_yh = None
 
-iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
+iwta = IterativeWTAInhSTDP(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
+# iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
 print(iwta)
 
 data_loader = DataLoader(RandomDataset, transform=None,
@@ -66,4 +67,4 @@ trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
 # trainer.monitor.advanced_monitoring(level=MonitorLevel.FULL)
 iwta.set_monitor(trainer.monitor)
-trainer.train(n_epochs=10)
+trainer.train(n_epochs=30)

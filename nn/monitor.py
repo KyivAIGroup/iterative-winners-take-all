@@ -73,6 +73,8 @@ class MonitorIWTA(MonitorEmbedding):
 
     def epoch_finished(self):
         super().epoch_finished()
+        if len(self.iwta_activations) == 0:
+            return
         z_h, z_y = self.iwta_activations[-1]
         if z_y.any() or z_h.any():
             # don't add zero space many times
@@ -104,6 +106,8 @@ class MonitorIWTA(MonitorEmbedding):
         self.iteration += 1
 
     def _plot_iwta_heatmap(self):
+        if len(self.iwta_activations) == 0:
+            return
         z_h, z_y = list(zip(*self.iwta_activations))
         z_h = np.stack(z_h, axis=1).astype(np.float32)
         z_y = np.stack(z_y, axis=1).astype(np.float32)

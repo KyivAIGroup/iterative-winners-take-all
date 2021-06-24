@@ -15,6 +15,7 @@ __all__ = [
     "IterativeWTA",
     "IterativeWTASparse",
     "IterativeWTASoft",
+    "IterativeWTAInhSTDP",
     "update_weights"
 ]
 
@@ -133,8 +134,9 @@ class WTAInterface(nn.Module):
 
 
 class KWTANet(WTAInterface):
-    def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None, kh=None, ky=None):
-        super().__init__(w_xy, w_xh, w_hy, w_yy=w_yy, w_hh=w_hh, w_yh=w_yh)
+    def __init__(self, w_xy, w_xh, w_hy, kh=None, ky=None):
+        # w_hh, w_yh, and w_yy are not defined for kWTA
+        super().__init__(w_xy, w_xh, w_hy)
         assert kh is not None
         self.kh = kh
         self.ky = ky  # if None, must be specified in the forward pass
@@ -244,18 +246,24 @@ class IterativeWTAInhSTDP(IterativeWTA):
                 update_weights(weight, x_pre=x_pre, x_post=x_post,
                                n_choose=n_choose)
 
+        # Regular excitatory synapses update
         _update_weight(self.w_xy, x_pre=x, x_post=y)
         _update_weight(self.w_xh, x_pre=x, x_post=h)
         _update_weight(self.w_yy, x_pre=y, x_post=y)
         _update_weight(self.w_yh, x_pre=y, x_post=h)
 
+        # Inhibitory synapses update
         for i, (z_h, z_y) in enumerate(self.history):
-            for h_coinc, y_coinc in self.history[
-                                    max(i - self.N_COINCIDENT, 0): i + 1]:
-                self.w_hh.update(x_pre=h_coinc, x_post=z_h)
-                self.w_hy.update(x_pre=h_coinc, x_post=z_y)
-            _update_weight(self.w_hh, x_pre=z_h, x_post=z_h)
-            _update_weight(self.w_hy, x_pre=z_h, x_post=z_y)
+            for j in range(0, i - self.N_COINCIDENT):
+                h_depression, _ = self.history[j]
+                alpha = -0.2 * LEARNING_RATE / len(self.history)
+                self.w_hh.update(x_pre=h_depression, x_post=z_h, alpha=alpha)
+                self.w_hy.update(x_pre=h_depression, x_post=z_y, alpha=alpha)
+            for j in range(max(0, i - self.N_COINCIDENT), i + 1):
+                h_coinc, _ = self.history[j]
+                alpha = LEARNING_RATE / len(self.history)
+                self.w_hh.update(x_pre=h_coinc, x_post=z_h, alpha=alpha)
+                self.w_hy.update(x_pre=h_coinc, x_post=z_y, alpha=alpha)
 
         self.history.clear()
 
