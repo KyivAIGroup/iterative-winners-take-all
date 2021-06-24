@@ -18,9 +18,9 @@ __all__ = [
     "update_weights"
 ]
 
+LEARNING_RATE = 0.001
 
 class ParameterWithPermanence(nn.Parameter):
-    LEARNING_RATE = 0.001
 
     def __new__(cls, permanence: torch.Tensor, sparsity: float, learn=True):
         n_active = math.ceil(permanence.nelement() * sparsity)
@@ -56,7 +56,7 @@ class ParameterWithPermanence(nn.Parameter):
             memo[id(self)] = result
             return result
 
-    def update(self, x_pre, x_post):
+    def update(self, x_pre, x_post, alpha=LEARNING_RATE):
         if not self.learn:
             # not learnable
             return
@@ -64,7 +64,7 @@ class ParameterWithPermanence(nn.Parameter):
         x_pre = torch.atleast_2d(x_pre)
         x_post = torch.atleast_2d(x_post)
         for x, y in zip(x_pre, x_post):
-            self.permanence.addr_(x, y, alpha=self.LEARNING_RATE)
+            self.permanence.addr_(x, y, alpha=alpha)
         self.normalize()
 
     def normalize(self):
@@ -112,19 +112,19 @@ class WTAInterface(nn.Module):
         self.monitor = monitor
 
     def update_weights(self, x, h, y, n_choose=1):
-        def update_weight(weight, x_pre, x_post):
+        def _update_weight(weight, x_pre, x_post):
             if isinstance(weight, ParameterWithPermanence):
                 weight.update(x_pre=x_pre, x_post=x_post)
             elif weight is not None:
                 update_weights(weight, x_pre=x_pre, x_post=x_post,
                                n_choose=n_choose)
 
-        update_weight(self.w_xy, x_pre=x, x_post=y)
-        update_weight(self.w_xh, x_pre=x, x_post=h)
-        update_weight(self.w_hy, x_pre=h, x_post=y)
-        update_weight(self.w_yy, x_pre=y, x_post=y)
-        update_weight(self.w_hh, x_pre=h, x_post=h)
-        update_weight(self.w_yh, x_pre=y, x_post=h)
+        _update_weight(self.w_xy, x_pre=x, x_post=y)
+        _update_weight(self.w_xh, x_pre=x, x_post=h)
+        _update_weight(self.w_hy, x_pre=h, x_post=y)
+        _update_weight(self.w_yy, x_pre=y, x_post=y)
+        _update_weight(self.w_hh, x_pre=h, x_post=h)
+        _update_weight(self.w_yh, x_pre=y, x_post=h)
 
     def weight_sparsity(self):
         sparsity = {name: compute_sparsity(param.data.float())
@@ -189,6 +189,75 @@ class IterativeWTA(WTAInterface):
             y[empty_trials] = y_kwta[empty_trials]
 
         return h, y
+
+
+class IterativeWTAInhSTDP(IterativeWTA):
+    history = []
+    N_COINCIDENT = 1
+
+    def forward(self, x):
+        x = torch.atleast_2d(x)
+        y0 = x @ self.w_xy
+        h0 = x @ self.w_xh
+        h = torch.zeros_like(h0, dtype=torch.int32)
+        y = torch.zeros_like(y0, dtype=torch.int32)
+        t_start = max(h0.max().item(), y0.max().item())
+        for threshold in range(t_start, 0, -1):
+            z_h = h0
+            if self.w_hh is not None:
+                z_h = z_h - h @ self.w_hh
+            if self.w_yh is not None:
+                z_h = z_h + y @ self.w_yh
+            z_h = z_h >= threshold
+
+            z_y = y0 - h @ self.w_hy
+            if self.w_yy is not None:
+                z_y += y @ self.w_yy
+            z_y = z_y >= threshold
+
+            h |= z_h
+            y |= z_y
+
+            if self.monitor is not None:
+                self.monitor.iwta_iteration(z_h, z_y)
+
+            self.history.append((z_h, z_y))
+
+        # TODO the same hack should be for 'h'
+        empty_trials = ~(y.any(dim=1))
+        if empty_trials.any():
+            # This is particularly wrong because y != y_kwta even when k=1
+            warnings.warn("iWTA resulted in a zero vector. "
+                          "Activating one neuron manually.")
+            h_kwta = KWTAFunction.apply(h0, 1)
+            y_kwta = KWTAFunction.apply(y0 - h_kwta @ self.w_hy, 1)
+            h[empty_trials] = h_kwta[empty_trials]
+            y[empty_trials] = y_kwta[empty_trials]
+
+        return h, y
+
+    def update_weights(self, x, h, y, n_choose=1):
+        def _update_weight(weight, x_pre, x_post):
+            if isinstance(weight, ParameterWithPermanence):
+                weight.update(x_pre=x_pre, x_post=x_post)
+            elif weight is not None:
+                update_weights(weight, x_pre=x_pre, x_post=x_post,
+                               n_choose=n_choose)
+
+        _update_weight(self.w_xy, x_pre=x, x_post=y)
+        _update_weight(self.w_xh, x_pre=x, x_post=h)
+        _update_weight(self.w_yy, x_pre=y, x_post=y)
+        _update_weight(self.w_yh, x_pre=y, x_post=h)
+
+        for i, (z_h, z_y) in enumerate(self.history):
+            for h_coinc, y_coinc in self.history[
+                                    max(i - self.N_COINCIDENT, 0): i + 1]:
+                self.w_hh.update(x_pre=h_coinc, x_post=z_h)
+                self.w_hy.update(x_pre=h_coinc, x_post=z_y)
+            _update_weight(self.w_hh, x_pre=z_h, x_post=z_h)
+            _update_weight(self.w_hy, x_pre=z_h, x_post=z_y)
+
+        self.history.clear()
 
 
 class IterativeWTASoft(IterativeWTA):
