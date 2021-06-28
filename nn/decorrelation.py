@@ -40,7 +40,7 @@ class RandomDataset(TensorDataset):
         super().__init__(x12, labels)
 
 
-x12 = sample_bernoulli((100, N_x), p=s_x)
+x12 = sample_bernoulli((10, N_x), p=s_x)
 
 if WITH_PERMANENCE:
     w_xy = ParameterWithPermanence(torch.rand(N_x, N_y), sparsity=s_w_xy, learn=False)
@@ -50,15 +50,15 @@ if WITH_PERMANENCE:
     w_yh = ParameterWithPermanence(torch.rand(N_y, N_h), sparsity=s_w_yh, learn=False)
     w_yy = ParameterWithPermanence(torch.rand(N_y, N_y), sparsity=s_w_yy, learn=False)
 else:
-    w_xy = nn.Parameter(sample_bernoulli((N_x, N_y), p=s_w_xy), requires_grad=False)
-    w_xh = nn.Parameter(sample_bernoulli((N_x, N_h), p=s_w_xh), requires_grad=False)
-    w_hy = nn.Parameter(sample_bernoulli((N_h, N_y), p=s_w_hy), requires_grad=False)
-    w_hh = None
+    w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
+    w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
+    w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy))
+    w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy))
     w_yy = None
     w_yh = None
 
-# iwta = IterativeWTAInhSTDP(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
-iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
+iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
+# iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
 print(iwta)
 
 data_loader = DataLoader(RandomDataset, transform=None,
@@ -69,4 +69,4 @@ trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
 trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS)
 iwta.set_monitor(trainer.monitor)
-trainer.train(n_epochs=30)
+trainer.train(n_epochs=10)

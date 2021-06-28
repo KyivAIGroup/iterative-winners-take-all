@@ -9,6 +9,7 @@ from nn.nn_utils import random_choice
 
 __all__ = [
     "ParameterWithPermanence",
+    "ParameterBinary",
     "KWTAFunction",
     "KWTANet",
     "WTAInterface",
@@ -21,7 +22,27 @@ __all__ = [
 
 LEARNING_RATE = 0.001
 
-class ParameterWithPermanence(nn.Parameter):
+
+class ParameterBinary(nn.Parameter):
+    def __new__(cls, data, learn=True):
+        param = super().__new__(cls, data, requires_grad=False)
+        param.learn = learn
+        return param
+
+    def update(self, x_pre, x_post, n_choose=1):
+        if not self.learn:
+            # not learnable
+            return
+        update_weights(self.data, x_pre=x_pre, x_post=x_post,
+                       n_choose=n_choose)
+
+    def __repr__(self):
+        shape = self.data.shape
+        kind = "[learnable]" if self.learn else "[fixed]"
+        return f"{self.__class__.__name__} {kind} {shape[0]} -> {shape[1]}"
+
+
+class ParameterWithPermanence(ParameterBinary):
 
     def __new__(cls, permanence: torch.Tensor, sparsity: float, learn=True):
         n_active = math.ceil(permanence.nelement() * sparsity)
@@ -30,24 +51,14 @@ class ParameterWithPermanence(nn.Parameter):
         data = torch.zeros_like(permanence, dtype=torch.int32)
         data.view(-1)[permanence.view(-1).topk(n_active).indices] = 1
 
-        param = super().__new__(cls, data, requires_grad=False)
+        param = super().__new__(cls, data, learn=learn)
         param.permanence = permanence
         param.n_active = n_active
-        param.learn = learn
         return param
 
     @property
     def sparsity(self):
         return self.n_active / self.data.nelement()
-
-    def __repr__(self):
-        shape = self.data.shape
-        s = f"{shape[0]} -> {shape[1]}"
-        if self.learn:
-            s = f"[learnable] {s}"
-        else:
-            s = f"[fixed] {s}"
-        return s
 
     def __deepcopy__(self, memo):
         if id(self) in memo:
@@ -115,10 +126,9 @@ class WTAInterface(nn.Module):
     def update_weights(self, x, h, y, n_choose=1):
         def _update_weight(weight, x_pre, x_post):
             if isinstance(weight, ParameterWithPermanence):
-                weight.update(x_pre=x_pre, x_post=x_post)
-            elif weight is not None:
-                update_weights(weight, x_pre=x_pre, x_post=x_post,
-                               n_choose=n_choose)
+                weight.update(x_pre, x_post)
+            elif isinstance(weight, ParameterBinary):
+                weight.update(x_pre, x_post, n_choose=n_choose)
 
         _update_weight(self.w_xy, x_pre=x, x_post=y)
         _update_weight(self.w_xh, x_pre=x, x_post=h)
@@ -241,10 +251,9 @@ class IterativeWTAInhSTDP(IterativeWTA):
     def update_weights(self, x, h, y, n_choose=1):
         def _update_weight(weight, x_pre, x_post):
             if isinstance(weight, ParameterWithPermanence):
-                weight.update(x_pre=x_pre, x_post=x_post)
-            elif weight is not None:
-                update_weights(weight, x_pre=x_pre, x_post=x_post,
-                               n_choose=n_choose)
+                weight.update(x_pre, x_post)
+            elif isinstance(weight, ParameterBinary):
+                weight.update(x_pre, x_post, n_choose=n_choose)
 
         # Regular excitatory synapses update
         _update_weight(self.w_xy, x_pre=x, x_post=y)
@@ -253,6 +262,8 @@ class IterativeWTAInhSTDP(IterativeWTA):
         _update_weight(self.w_yh, x_pre=y, x_post=h)
 
         # Inhibitory synapses update
+        assert isinstance(self.w_hh, ParameterWithPermanence)
+        assert isinstance(self.w_hy, ParameterWithPermanence)
         for i, (z_h, z_y) in enumerate(self.history):
             for j in range(0, i - self.N_COINCIDENT):
                 h_depression, _ = self.history[j]
