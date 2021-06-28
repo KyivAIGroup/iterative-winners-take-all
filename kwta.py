@@ -76,7 +76,7 @@ def update_weights(w, x_pre, x_post, n_choose=1):
     if x_pre.ndim == 2:
         assert x_pre.shape[1] == x_post.shape[1]
         for x, y in zip(x_pre.T, x_post.T):
-            update_weights(w, x_pre=x, x_post=y)
+            update_weights(w, x_pre=x, x_post=y, n_choose=n_choose)
         return
     x_pre_idx = x_pre.nonzero()[0]
     if len(x_pre_idx) == 0:
@@ -86,6 +86,10 @@ def update_weights(w, x_pre, x_post, n_choose=1):
     if len(x_post_idx) == 0:
         warnings.warn("'x_post' is a zero vector")
         return
-    idx_pre = np.random.choice(x_pre_idx, n_choose)
-    idx_post = np.random.choice(x_post_idx, n_choose)
-    w[idx_post, idx_pre] = 1
+    if n_choose is None:
+        # update all combinations
+        w[np.expand_dims(x_post_idx, axis=1), x_pre_idx] = 1
+    else:
+        idx_pre = np.random.choice(x_pre_idx, n_choose)
+        idx_post = np.random.choice(x_post_idx, n_choose)
+        w[idx_post, idx_pre] = 1

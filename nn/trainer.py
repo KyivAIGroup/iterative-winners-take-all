@@ -16,6 +16,7 @@ from utils import compute_discriminative_factor
 class TrainerIWTA(TrainerEmbedding):
 
     watch_modules = TrainerEmbedding.watch_modules + (WTAInterface,)
+    N_CHOOSE = 1
 
     def __init__(self,
                  model: nn.Module,
@@ -69,7 +70,7 @@ class TrainerIWTA(TrainerEmbedding):
             loss.backward()
             self.optimizer.step(closure=None)
         else:
-            self.model.update_weights(x, h, y)
+            self.model.update_weights(x, h, y, n_choose=self.N_CHOOSE)
         return loss
 
     def _init_online_measures(self):

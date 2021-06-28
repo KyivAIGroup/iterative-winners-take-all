@@ -10,6 +10,14 @@ import torch.nn.functional as F
 from graph import plot_assemblies
 from mighty.monitor.accuracy import calc_accuracy
 from mighty.monitor.monitor import MonitorEmbedding, ParamRecord
+from mighty.utils.domain import MonitorLevel
+
+
+def count_sign_flips_binary(new_data, prev_data):
+    return (new_data ^ prev_data).sum().item()
+
+
+ParamRecord.count_sign_flips = count_sign_flips_binary
 
 
 class MonitorIWTA(MonitorEmbedding):
@@ -145,8 +153,10 @@ class MonitorIWTA(MonitorEmbedding):
         return accuracy
 
     def update_weight_histogram(self):
+        if not self._advanced_monitoring_level & MonitorLevel.WEIGHT_HISTOGRAM:
+            return
         for name, param_record in self.param_records.items():
-            permanence = getattr(param_record.param, "permanence")
+            permanence = getattr(param_record.param, "permanence", None)
             if permanence is None:
                 continue
             self.viz.histogram(X=permanence.view(-1), win=name, opts=dict(

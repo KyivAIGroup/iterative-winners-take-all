@@ -1,4 +1,5 @@
 import math
+import numpy as np
 import torch
 import torch.utils.data
 
@@ -9,7 +10,8 @@ def sample_bernoulli(shape, p):
 
 
 def random_choice(vec: torch.Tensor, n_choose: int):
-    idx = torch.randperm(vec.size(0))[:n_choose]
+    idx = np.random.choice(vec.size(0), n_choose)
+    idx = torch.from_numpy(idx)
     return vec[idx]
 
 

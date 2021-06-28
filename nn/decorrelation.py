@@ -10,6 +10,7 @@ from torch.utils.data import TensorDataset
 from mighty.loss import ContrastiveLossSampler
 from mighty.utils.common import set_seed
 from mighty.utils.data import DataLoader
+from mighty.utils.domain import MonitorLevel
 from nn.kwta import *
 from nn.trainer import TrainerIWTA
 from nn.nn_utils import sample_bernoulli, NoShuffleLoader
@@ -25,20 +26,21 @@ s_w_yy = 0.01
 s_w_hh = 0.1
 s_w_yh = 0.05
 
-WITH_PERMANENCE = True
+WITH_PERMANENCE = False
 
 
 class TrainerIWTADecorrelation(TrainerIWTA):
+    N_CHOOSE = None
     pass
 
 
 class RandomDataset(TensorDataset):
     def __init__(self, *args, **kwargs):
-        labels = torch.arange(2)
+        labels = torch.arange(x12.size(0))
         super().__init__(x12, labels)
 
 
-x12 = sample_bernoulli((2, N_x), p=s_x)
+x12 = sample_bernoulli((100, N_x), p=s_x)
 
 if WITH_PERMANENCE:
     w_xy = ParameterWithPermanence(torch.rand(N_x, N_y), sparsity=s_w_xy, learn=False)
@@ -55,8 +57,8 @@ else:
     w_yy = None
     w_yh = None
 
-iwta = IterativeWTAInhSTDP(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
-# iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
+# iwta = IterativeWTAInhSTDP(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
+iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
 print(iwta)
 
 data_loader = DataLoader(RandomDataset, transform=None,
@@ -65,6 +67,6 @@ criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0),
                                    pairs_multiplier=5)
 trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
-# trainer.monitor.advanced_monitoring(level=MonitorLevel.FULL)
+trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS)
 iwta.set_monitor(trainer.monitor)
 trainer.train(n_epochs=30)

@@ -37,8 +37,13 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
         graph.add_edges_from(combinations(assembly, 2))
     node_labels = {node: ','.join(node_labels[node]) for node in graph.nodes}
     if fixed is not None:
-        fixed = unique.intersection(fixed)
-    pos = nx.spring_layout(graph, iterations=100, pos=pos, fixed=None)
+        if fixed == unique:
+            fixed = unique
+        else:
+            # if at least one element has been added or removed, reset
+            # fixed = unique.intersection(fixed)
+            fixed = None
+    pos = nx.spring_layout(graph, iterations=100, pos=pos, fixed=fixed)
     fixed = unique
 
     fig, ax = plt.subplots()

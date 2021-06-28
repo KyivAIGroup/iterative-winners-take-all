@@ -366,7 +366,10 @@ def update_weights(w, x_pre, x_post, n_choose=1):
     if len(x_post_idx) == 0:
         warnings.warn("'x_post' is a zero vector")
         return
-    n_choose = min(n_choose, len(x_pre_idx), len(x_post_idx))
-    idx_pre = random_choice(x_pre_idx, n_choose=n_choose)
-    idx_post = random_choice(x_post_idx, n_choose=n_choose)
-    w[idx_pre, idx_post] = 1
+    if n_choose is None:
+        # update all combinations
+        w[x_pre_idx.unsqueeze(1), x_post_idx] = 1
+    else:
+        idx_pre = random_choice(x_pre_idx, n_choose=n_choose)
+        idx_post = random_choice(x_post_idx, n_choose=n_choose)
+        w[idx_pre, idx_post] = 1
