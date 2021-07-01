@@ -73,5 +73,4 @@ criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0),
 trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
 trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)
-iwta.set_monitor(trainer.monitor)
 trainer.train(n_epochs=25)

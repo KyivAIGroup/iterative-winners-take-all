@@ -37,9 +37,6 @@ class ParamRecordBinary(ParamRecord):
 class MonitorIWTA(MonitorEmbedding):
     pos = defaultdict(lambda: None)
     fixed = defaultdict(lambda: None)
-    iteration = 0
-    track_iwta = False
-    iwta_activations = []
 
     def plot_assemblies(self, assemblies, labels=None, name=None):
         if labels is not None:
@@ -74,20 +71,6 @@ class MonitorIWTA(MonitorEmbedding):
         # don't reset precords
         pass
 
-    def iwta_iteration(self, z_h, z_y, id_=0):
-        if not self.track_iwta:
-            return
-        # self._plot_iwta_scatter(z_h, z_y, id_=id_)
-        z_h = z_h[id_].detach().cpu().type(torch.float32).clone()
-        z_y = z_y[id_].detach().cpu().type(torch.float32).clone()
-        if len(self.iwta_activations) > 0:
-            z_h_prev, z_y_prev = self.iwta_activations[-1]
-            z_h[z_h_prev.nonzero(as_tuple=True)] = 0.5
-            z_y[z_y_prev.nonzero(as_tuple=True)] = 0.5
-            z_h_prev[((z_h_prev == 1) & (z_h == 0)).nonzero(as_tuple=True)] = np.nan
-            z_y_prev[((z_y_prev == 1) & (z_y == 0)).nonzero(as_tuple=True)] = np.nan
-        self.iwta_activations.append([z_h, z_y])
-
     def update_weight_sparsity(self, sparsity: dict):
         names, sparsity = zip(*sparsity.items())
         self.viz.line_update(y=sparsity, opts=dict(
@@ -121,51 +104,6 @@ class MonitorIWTA(MonitorEmbedding):
     def epoch_finished(self):
         super().epoch_finished()
         self.update_sign_flips_hist()
-        if len(self.iwta_activations) == 0:
-            return
-        z_h, z_y = self.iwta_activations[-1]
-        if z_y.any() or z_h.any():
-            # don't add zero space many times
-            self.iwta_activations.append([torch.zeros_like(z_h),
-                                          torch.zeros_like(z_y)])
-        self.iteration = 0
-
-    def _plot_iwta_scatter(self, z_h, z_y, id_):
-        for name, assembly in dict(z_h=z_h, z_y=z_y).items():
-            assembly = assembly[id_]
-            size = assembly.size(0)
-            assembly = assembly.nonzero(as_tuple=True)[0]
-            xs = np.full(len(assembly), self.iteration, dtype=np.float32)
-            coords = np.c_[xs, assembly]
-            win = f"{name} [{self.timer.epoch}]"
-            self.viz.scatter(coords, win=win, update='append', opts=dict(
-                markersize=3,
-                ylabel='Neuron',
-                xlabel='Iteration',
-                title=win,
-                ytickmin=0,
-                ytickmax=size,
-            ))
-            self.viz.update_window_opts(win=win,
-                                        opts=dict(
-                                            xtickmin=-0.2,
-                                            xtickmax=self.iteration + 0.2
-                                        ))
-        self.iteration += 1
-
-    def _plot_iwta_heatmap(self):
-        if len(self.iwta_activations) == 0:
-            return
-        z_h, z_y = zip(*self.iwta_activations)
-        z_h = np.stack(z_h, axis=1).astype(np.float32)
-        z_y = np.stack(z_y, axis=1).astype(np.float32)
-        for name, assembly in dict(z_h=z_h, z_y=z_y).items():
-            self.viz.heatmap(assembly, win=f"{name}-heatmap", opts=dict(
-                title=name,
-                xlabel='Iteration',
-                ylabel='Neuron',
-            ))
-        self.iwta_activations.clear()
 
     def register_layer(self, layer: nn.Module, prefix: str):
         """
@@ -185,6 +123,9 @@ class MonitorIWTA(MonitorEmbedding):
             )
 
     def embedding_hist(self, activations):
+        pass
+
+    def update_l1_neuron_norm(self, l1_norm: torch.Tensor):
         pass
 
     def update_accuracy_epoch(self, labels_pred, labels_true, mode):

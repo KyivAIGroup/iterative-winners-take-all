@@ -59,10 +59,6 @@ class TrainerIWTA(TrainerEmbedding):
             return None
         return super().full_forward_pass(train=train)
 
-    def _forward(self, batch):
-        h, y = super()._forward(batch)
-        return h, y
-
     def train_batch(self, batch):
         x, labels = batch
         h, y = self.model(x)
@@ -100,9 +96,7 @@ class TrainerIWTA(TrainerEmbedding):
         kwta_thresholds = self.model.epoch_finished()
         self.monitor.update_kwta_thresholds(kwta_thresholds)
         x, labels = self.data_loader.sample()
-        self.monitor.track_iwta = self.timer.epoch in (1, self.timer.n_epochs)
         h, y = self.model(x)
-        self.monitor.track_iwta = False
         self.monitor.plot_assemblies(h, labels, name='h')
         self.monitor.plot_assemblies(y, labels, name='y')
         self.monitor.update_pairwise_similarity(y, labels, name='y')
@@ -136,6 +130,3 @@ class TrainerIWTA(TrainerEmbedding):
         input, labels = batch
         h, y = output
         return self.criterion(y, labels)
-
-    def training_finished(self):
-        self.monitor._plot_iwta_heatmap()

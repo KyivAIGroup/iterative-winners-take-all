@@ -87,14 +87,6 @@ class ParameterWithPermanence(ParameterBinary):
     def sparsity(self):
         return self.n_active / self.data.nelement()
 
-    def __deepcopy__(self, memo):
-        if id(self) in memo:
-            return memo[id(self)]
-        else:
-            result = type(self)(self.permanence.clone(memory_format=torch.preserve_format), self.sparsity, self.learn)
-            memo[id(self)] = result
-            return result
-
     def update(self, x_pre, x_post, lr=0.001):
         if not self.learn:
             # not learnable
@@ -145,14 +137,10 @@ class WTAInterface(nn.Module):
         self.w_yy = w_yy
         self.w_hh = w_hh
         self.w_yh = w_yh
-        self.monitor = None
 
     def extra_repr(self) -> str:
         s = [f"{name}: {repr(param)}" for name, param in self.named_parameters()]
         return '\n'.join(s)
-
-    def set_monitor(self, monitor):
-        self.monitor = monitor
 
     def update_weights(self, x, h, y, n_choose=1, lr=0.001):
         def _update_weight(weight, x_pre, x_post):
@@ -222,9 +210,6 @@ class IterativeWTA(WTAInterface):
             h |= z_h
             y |= z_y
 
-            if self.monitor is not None:
-                self.monitor.iwta_iteration(z_h, z_y)
-
         # TODO the same hack should be for 'h'
         empty_trials = ~(y.any(dim=1))
         if empty_trials.any():
@@ -265,9 +250,6 @@ class IterativeWTAInhSTDP(IterativeWTA):
 
             h |= z_h
             y |= z_y
-
-            if self.monitor is not None:
-                self.monitor.iwta_iteration(z_h, z_y)
 
             self.history.append((z_h, z_y))
 
@@ -349,9 +331,6 @@ class IterativeWTASoft(IterativeWTA):
             else:
                 z_y = (z_y >= threshold).float()
 
-            if self.monitor is not None:
-                self.monitor.iwta_iteration(z_h, z_y)
-
         return z_h, z_y
 
 
@@ -383,9 +362,6 @@ class IterativeWTASparse(IterativeWTA):
             z_y_prev = z_y
             h |= z_h
             y |= z_y
-
-            if self.monitor is not None:
-                self.monitor.iwta_iteration(z_h, z_y, id_=1)
 
         # TODO the same hack should be for 'h'
         empty_trials = ~(y.any(dim=1))
