@@ -263,19 +263,19 @@ class IterativeWTAInhSTDP(IterativeWTA):
         # Inhibitory synapses update
         assert isinstance(self.w_hh, ParameterWithPermanence)
         assert isinstance(self.w_hy, ParameterWithPermanence)
-        n = self.N_COINCIDENT
+        n = (self.N_COINCIDENT + 1)
         nh = len(self.history)
         for i, (z_h, z_y) in enumerate(self.history):
-            for j in range(0, i - self.N_COINCIDENT):
-                h_depression, _ = self.history[j]
+            for j in range(max(0, i - self.N_COINCIDENT), i + 1):
+                h_potentiation, _ = self.history[j]
                 alpha = lr / (nh * n)
+                self.w_hh.update(x_pre=h_potentiation, x_post=z_h, lr=alpha)
+                self.w_hy.update(x_pre=h_potentiation, x_post=z_y, lr=alpha)
+            for j in range(0, i - self.N_COINCIDENT - 1):
+                h_depression, _ = self.history[j]
+                alpha = -lr / (nh * (nh - n))
                 self.w_hh.update(x_pre=h_depression, x_post=z_h, lr=alpha)
                 self.w_hy.update(x_pre=h_depression, x_post=z_y, lr=alpha)
-            for j in range(max(0, i - self.N_COINCIDENT), i + 1):
-                h_coinc, _ = self.history[j]
-                alpha = -lr / (nh * (nh - n))
-                self.w_hh.update(x_pre=h_coinc, x_post=z_h, lr=alpha)
-                self.w_hy.update(x_pre=h_coinc, x_post=z_y, lr=alpha)
 
         self.history.clear()
 
