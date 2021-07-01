@@ -16,5 +16,5 @@ check_randomness(w.numpy())
 
 for epoch in range(10):
     y = KWTAFunction.apply(x @ w, K_ACTIVE)
-    w.update(x_pre=x, x_post=y, alpha=1)
+    w.update(x_pre=x, x_post=y, lr=1)
     check_randomness(w.numpy())

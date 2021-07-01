@@ -26,11 +26,12 @@ s_w_yy = 0.01
 s_w_hh = 0.1
 s_w_yh = 0.05
 
-WITH_PERMANENCE = False
+WITH_PERMANENCE = True
 
 
 class TrainerIWTADecorrelation(TrainerIWTA):
     N_CHOOSE = None
+    LEARNING_RATE = 0.01
     pass
 
 
@@ -47,17 +48,19 @@ if WITH_PERMANENCE:
     w_xh = ParameterWithPermanence(torch.rand(N_x, N_h), sparsity=s_w_xh, learn=False)
     w_hy = ParameterWithPermanence(torch.rand(N_h, N_y), sparsity=s_w_hy)
     w_hh = ParameterWithPermanence(torch.rand(N_h, N_h), sparsity=s_w_hh, learn=False)
-    w_yh = ParameterWithPermanence(torch.rand(N_y, N_h), sparsity=s_w_yh, learn=False)
-    w_yy = ParameterWithPermanence(torch.rand(N_y, N_y), sparsity=s_w_yy, learn=False)
+    # w_yh = ParameterWithPermanence(torch.rand(N_y, N_h), sparsity=s_w_yh, learn=False)
+    # w_yy = ParameterWithPermanence(torch.rand(N_y, N_y), sparsity=s_w_yy, learn=False)
+    w_yy = None
+    w_yh = None
 else:
-    w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
+    w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=True)
     w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
-    w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy))
-    w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy))
+    w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=False)
+    w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=False)
     w_yy = None
     w_yh = None
 
-iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
+iwta = IterativeWTAInhSTDP(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
 # iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
 print(iwta)
 
@@ -67,6 +70,6 @@ criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0),
                                    pairs_multiplier=5)
 trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
-trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS)
+trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)
 iwta.set_monitor(trainer.monitor)
-trainer.train(n_epochs=10)
+trainer.train(n_epochs=50)

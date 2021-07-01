@@ -20,8 +20,6 @@ __all__ = [
     "update_weights"
 ]
 
-LEARNING_RATE = 0.001
-
 
 class ParameterBinary(nn.Parameter):
     def __new__(cls, data, learn=True):
@@ -68,7 +66,7 @@ class ParameterWithPermanence(ParameterBinary):
             memo[id(self)] = result
             return result
 
-    def update(self, x_pre, x_post, alpha=LEARNING_RATE):
+    def update(self, x_pre, x_post, lr=0.001):
         if not self.learn:
             # not learnable
             return
@@ -76,10 +74,11 @@ class ParameterWithPermanence(ParameterBinary):
         x_pre = torch.atleast_2d(x_pre)
         x_post = torch.atleast_2d(x_post)
         for x, y in zip(x_pre, x_post):
-            self.permanence.addr_(x, y, alpha=alpha)
+            self.permanence.addr_(x, y, alpha=lr)
         self.normalize()
 
     def normalize(self):
+        self.permanence.clamp_min_(0)
         presum = self.permanence.sum(dim=0, keepdim=True)
         self.permanence /= presum
         perm = self.permanence.view(-1)
@@ -123,10 +122,10 @@ class WTAInterface(nn.Module):
     def set_monitor(self, monitor):
         self.monitor = monitor
 
-    def update_weights(self, x, h, y, n_choose=1):
+    def update_weights(self, x, h, y, n_choose=1, lr=0.001):
         def _update_weight(weight, x_pre, x_post):
             if isinstance(weight, ParameterWithPermanence):
-                weight.update(x_pre, x_post)
+                weight.update(x_pre, x_post, lr=lr)
             elif isinstance(weight, ParameterBinary):
                 weight.update(x_pre, x_post, n_choose=n_choose)
 
@@ -248,10 +247,10 @@ class IterativeWTAInhSTDP(IterativeWTA):
 
         return h, y
 
-    def update_weights(self, x, h, y, n_choose=1):
+    def update_weights(self, x, h, y, n_choose=1, lr=0.001):
         def _update_weight(weight, x_pre, x_post):
             if isinstance(weight, ParameterWithPermanence):
-                weight.update(x_pre, x_post)
+                weight.update(x_pre, x_post, lr=lr)
             elif isinstance(weight, ParameterBinary):
                 weight.update(x_pre, x_post, n_choose=n_choose)
 
@@ -264,17 +263,19 @@ class IterativeWTAInhSTDP(IterativeWTA):
         # Inhibitory synapses update
         assert isinstance(self.w_hh, ParameterWithPermanence)
         assert isinstance(self.w_hy, ParameterWithPermanence)
+        n = self.N_COINCIDENT
+        nh = len(self.history)
         for i, (z_h, z_y) in enumerate(self.history):
             for j in range(0, i - self.N_COINCIDENT):
                 h_depression, _ = self.history[j]
-                alpha = -0.2 * LEARNING_RATE / len(self.history)
-                self.w_hh.update(x_pre=h_depression, x_post=z_h, alpha=alpha)
-                self.w_hy.update(x_pre=h_depression, x_post=z_y, alpha=alpha)
+                alpha = lr / (nh * n)
+                self.w_hh.update(x_pre=h_depression, x_post=z_h, lr=alpha)
+                self.w_hy.update(x_pre=h_depression, x_post=z_y, lr=alpha)
             for j in range(max(0, i - self.N_COINCIDENT), i + 1):
                 h_coinc, _ = self.history[j]
-                alpha = LEARNING_RATE / len(self.history)
-                self.w_hh.update(x_pre=h_coinc, x_post=z_h, alpha=alpha)
-                self.w_hy.update(x_pre=h_coinc, x_post=z_y, alpha=alpha)
+                alpha = -lr / (nh * (nh - n))
+                self.w_hh.update(x_pre=h_coinc, x_post=z_h, lr=alpha)
+                self.w_hy.update(x_pre=h_coinc, x_post=z_y, lr=alpha)
 
         self.history.clear()
 

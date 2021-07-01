@@ -17,6 +17,7 @@ class TrainerIWTA(TrainerEmbedding):
 
     watch_modules = TrainerEmbedding.watch_modules + (WTAInterface,)
     N_CHOOSE = 1
+    LEARNING_RATE = 0.001
 
     def __init__(self,
                  model: nn.Module,
@@ -70,7 +71,8 @@ class TrainerIWTA(TrainerEmbedding):
             loss.backward()
             self.optimizer.step(closure=None)
         else:
-            self.model.update_weights(x, h, y, n_choose=self.N_CHOOSE)
+            self.model.update_weights(x, h, y, n_choose=self.N_CHOOSE,
+                                      lr=self.LEARNING_RATE)
         return loss
 
     def _init_online_measures(self):
