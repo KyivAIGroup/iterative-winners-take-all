@@ -89,7 +89,7 @@ class MonitorIWTA(MonitorEmbedding):
         self.iwta_activations.append([z_h, z_y])
 
     def update_weight_sparsity(self, sparsity: dict):
-        names, sparsity = list(zip(*sparsity.items()))
+        names, sparsity = zip(*sparsity.items())
         self.viz.line_update(y=sparsity, opts=dict(
             xlabel='Epoch',
             ylabel='L1 norm / size',
@@ -108,6 +108,15 @@ class MonitorIWTA(MonitorEmbedding):
                 title=f"{name} instability",
                 ytype='log',
             ))
+
+    def update_kwta_thresholds(self, kwta_thresholds: dict):
+        labels, thresholds = zip(*kwta_thresholds.items())
+        self.viz.line_update(thresholds, opts=dict(
+            xlabel="Epoch",
+            ylabel="Threshold",
+            title="kWTA permanence thresholds",
+            legend=list(labels),
+        ))
 
     def epoch_finished(self):
         super().epoch_finished()
@@ -147,7 +156,7 @@ class MonitorIWTA(MonitorEmbedding):
     def _plot_iwta_heatmap(self):
         if len(self.iwta_activations) == 0:
             return
-        z_h, z_y = list(zip(*self.iwta_activations))
+        z_h, z_y = zip(*self.iwta_activations)
         z_h = np.stack(z_h, axis=1).astype(np.float32)
         z_y = np.stack(z_y, axis=1).astype(np.float32)
         for name, assembly in dict(z_h=z_h, z_y=z_y).items():

@@ -59,7 +59,7 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
     ax.set_title(title)
     ax.legend()
 
-    nodes, locations = list(zip(*pos.items()))
+    nodes, locations = zip(*pos.items())
     locations = np.array(locations)
     argsort = np.argsort(nodes)
     locations = locations[argsort]

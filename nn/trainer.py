@@ -97,6 +97,8 @@ class TrainerIWTA(TrainerEmbedding):
         self.cached_labels.clear()
 
     def _epoch_finished(self, loss):
+        kwta_thresholds = self.model.epoch_finished()
+        self.monitor.update_kwta_thresholds(kwta_thresholds)
         x, labels = self.data_loader.sample()
         self.monitor.track_iwta = self.timer.epoch in (1, self.timer.n_epochs)
         h, y = self.model(x)

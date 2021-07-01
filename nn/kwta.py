@@ -22,17 +22,46 @@ __all__ = [
 
 
 class ParameterBinary(nn.Parameter):
-    def __new__(cls, data, learn=True):
+    DROPOUT = 0.5
+
+    def __new__(cls, data: torch.Tensor, learn=True):
         param = super().__new__(cls, data, requires_grad=False)
+        assert data.unique().tolist() == [0, 1]
         param.learn = learn
+        param.permanence = data.clone().type(torch.float32)  # counts
         return param
 
     def update(self, x_pre, x_post, n_choose=1):
         if not self.learn:
             # not learnable
             return
-        update_weights(self.data, x_pre=x_pre, x_post=x_post,
-                       n_choose=n_choose)
+        for x, y in zip(x_pre, x_post):
+            x = x.nonzero(as_tuple=True)[0]
+            y = y.nonzero(as_tuple=True)[0]
+            if n_choose is None:
+                # full outer product
+                self.permanence[x.unsqueeze(1), y] += 1
+            else:
+                x = random_choice(x, n_choose=n_choose)
+                y = random_choice(y, n_choose=n_choose)
+                self.permanence[x, y] += 1
+
+    def normalize(self):
+        if not self.learn:
+            return
+        self.permanence.clamp_min_(0)
+        # self.permanence /= self.permanence.max()  # only to avoid overflow
+        perm = self.permanence.view(-1)
+        perm = perm[perm.nonzero(as_tuple=True)[0]]
+        n_active = len(perm)
+        n_drop = int(self.DROPOUT * n_active)
+        threshold = perm.kthvalue(n_drop).values.item()  # k-th smallest value
+        if threshold == perm.min():
+            # avoid a matrix full of zeros
+            return threshold
+        self.permanence[self.permanence <= threshold] = 0
+        self.data[:] = self.permanence > 0
+        return threshold
 
     def __repr__(self):
         shape = self.data.shape
@@ -46,8 +75,8 @@ class ParameterWithPermanence(ParameterBinary):
         n_active = math.ceil(permanence.nelement() * sparsity)
         presum = permanence.sum(dim=0, keepdim=True)
         permanence /= presum
-        data = torch.zeros_like(permanence, dtype=torch.int32)
-        data.view(-1)[permanence.view(-1).topk(n_active).indices] = 1
+        thr = permanence.view(-1).topk(n_active).values[-1]
+        data = (permanence > thr).int()
 
         param = super().__new__(cls, data, learn=learn)
         param.permanence = permanence
@@ -75,15 +104,18 @@ class ParameterWithPermanence(ParameterBinary):
         x_post = torch.atleast_2d(x_post)
         for x, y in zip(x_pre, x_post):
             self.permanence.addr_(x, y, alpha=lr)
-        self.normalize()
 
     def normalize(self):
+        if not self.learn:
+            return
         self.permanence.clamp_min_(0)
         presum = self.permanence.sum(dim=0, keepdim=True)
         self.permanence /= presum
+        return super().normalize()
         perm = self.permanence.view(-1)
-        self.data.zero_()
-        self.data.view(-1)[perm.topk(self.n_active).indices] = 1
+        threshold = perm.view(-1).topk(self.n_active).values[-1]
+        self.data[:] = self.permanence > threshold
+        return threshold
 
 
 class KWTAFunction(torch.autograd.Function):
@@ -135,6 +167,11 @@ class WTAInterface(nn.Module):
         _update_weight(self.w_yy, x_pre=y, x_post=y)
         _update_weight(self.w_hh, x_pre=h, x_post=h)
         _update_weight(self.w_yh, x_pre=y, x_post=h)
+
+    def epoch_finished(self):
+        kwta_thresholds = {name: param.normalize()
+                           for name, param in self.named_parameters()}
+        return kwta_thresholds
 
     def weight_sparsity(self):
         sparsity = {name: compute_sparsity(param.data.float())
