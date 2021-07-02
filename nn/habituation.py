@@ -41,7 +41,7 @@ class TrainerIWTAHabituation(TrainerIWTA):
         convergence = {}
         sparsity_per_label = {"p(x)": p_x}
         for name, output in self.cached_output.items():
-            output = torch.cat(output)
+            output = torch.cat(output).int()
             sparsity = torch.zeros(len(labels_unique))
             if name in self.cached_output_prev:
                 flips = (self.cached_output_prev[name] ^ output).sum(dim=1)
@@ -67,11 +67,11 @@ x_unique = sample_bernoulli((N_UNIQUE, N_x), p=s_x)
 labels = np.random.choice(N_UNIQUE - 1, size=N_REPEATS - N_REPEATS_PEAK)
 labels = np.r_[labels, np.full(N_REPEATS_PEAK, fill_value=N_UNIQUE - 1)]
 np.random.shuffle(labels)
-labels = torch.from_numpy(labels)
+labels = torch.from_numpy(labels).to(device=x_unique.device)
 xs = x_unique[labels]
 
 _, label_counts = labels.unique(return_counts=True)
-p_x = label_counts / len(labels)
+p_x = label_counts.cpu() / len(labels)
 
 w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
 w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
@@ -88,8 +88,7 @@ print(iwta)
 
 data_loader = DataLoader(RandomWithRepetitions, transform=None,
                          loader_cls=NoShuffleLoader)
-criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0),
-                                   pairs_multiplier=5)
+criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0))
 trainer = TrainerIWTAHabituation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
 trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)

@@ -47,8 +47,11 @@ shuffle_idx = np.random.permutation(len(xs))
 xs = xs[shuffle_idx]
 labels = labels[shuffle_idx]
 
-xs = torch.from_numpy(xs).type(torch.int32)
+xs = torch.from_numpy(xs).float()
 labels = torch.from_numpy(labels)
+if torch.cuda.is_available():
+    xs = xs.cuda()
+    labels = labels.cuda()
 
 w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
 w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
@@ -61,8 +64,7 @@ w_yh = ParameterBinary(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True, dropo
 
 data_loader = DataLoader(NoisyCentroids, transform=None,
                          loader_cls=NoShuffleLoader)
-criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0),
-                                   pairs_multiplier=5)
+criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0))
 
 iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
 # iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)

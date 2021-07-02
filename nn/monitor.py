@@ -10,6 +10,7 @@ from graph import plot_assemblies
 from mighty.monitor.accuracy import calc_accuracy
 from mighty.monitor.monitor import MonitorEmbedding, ParamRecord
 from mighty.utils.domain import MonitorLevel
+from mighty.utils.common import clone_cpu
 
 
 class ParamRecordBinary(ParamRecord):
@@ -20,16 +21,16 @@ class ParamRecordBinary(ParamRecord):
             monitor_level = MonitorLevel.DISABLED
             sign_flips = None
         super().__init__(param=param, monitor_level=monitor_level)
+        if self.prev_data is not None:
+            self.prev_data = self.prev_data.int()
         self.sign_flips = sign_flips
 
-    @staticmethod
-    def count_sign_flips(new_data, prev_data):
-        return (new_data ^ prev_data).sum().item()
-
     def update_signs(self):
-        if self.prev_data is not None:
-            self.sign_flips += self.param.data.cpu() ^ self.prev_data
-        sign_flips_count = super().update_signs()
+        new_data = clone_cpu(self.param.data.int())
+        xor = new_data ^ self.prev_data
+        self.sign_flips += xor
+        self.prev_data = new_data
+        sign_flips_count = xor.sum().item()
         return sign_flips_count
 
 
@@ -37,22 +38,21 @@ class MonitorIWTA(MonitorEmbedding):
     pos = defaultdict(lambda: None)
     fixed = defaultdict(lambda: None)
 
-    def plot_assemblies(self, assemblies, labels=None, name=None):
-        if labels is not None:
-            # take at most 2 classes 2 samples each
-            idx = []
-            for label in labels.unique()[:2]:
-                take = (labels == label).nonzero(as_tuple=True)[0][:2]
-                idx.extend(take.tolist())
-            assemblies = assemblies[idx]
-            labels = labels[idx]
-        nonzero = [vec.nonzero(as_tuple=True)[0].numpy()
+    def plot_assemblies(self, assemblies, labels, name=None):
+        # take at most 2 classes 2 samples each
+        idx = []
+        for label in labels.unique()[:2]:
+            take = (labels == label).nonzero(as_tuple=True)[0][:2]
+            idx.extend(take.tolist())
+        assemblies = assemblies[idx]
+        labels = labels[idx]
+        nonzero = [vec.nonzero(as_tuple=True)[0].cpu().numpy()
                    for vec in assemblies.cpu()]
         ax, self.pos[name], self.fixed[name] = plot_assemblies(
             nonzero,
             pos=self.pos[name],
             fixed=self.fixed[name],
-            labels=labels
+            labels=labels.tolist()
         )
         with io.BytesIO() as buff:
             ax.figure.savefig(buff, format='raw')
@@ -128,12 +128,6 @@ class MonitorIWTA(MonitorEmbedding):
                 param,
                 monitor_level=self._advanced_monitoring_level
             )
-
-    def embedding_hist(self, activations):
-        pass
-
-    def update_l1_neuron_norm(self, l1_norm: torch.Tensor):
-        pass
 
     def update_accuracy_epoch(self, labels_pred, labels_true, mode):
         accuracy = calc_accuracy(labels_true, labels_pred)

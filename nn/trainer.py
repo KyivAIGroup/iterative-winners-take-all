@@ -1,19 +1,16 @@
+from collections import defaultdict
+
 import torch
 import torch.nn as nn
-import numpy as np
-from collections import defaultdict
 
 from mighty.monitor.accuracy import AccuracyEmbedding
 from mighty.trainer import TrainerEmbedding, TrainerGrad
 from mighty.utils.common import clone_cpu
 from mighty.utils.data import DataLoader
-from mighty.utils.signal import compute_sparsity
 from mighty.utils.stub import OptimizerStub
-from mighty.utils.var_online import MeanOnline
 from nn.kwta import WTAInterface, IterativeWTASoft
 from nn.monitor import MonitorIWTA
-from utils import compute_discriminative_factor
-from nn.nn_utils import l0_sparsity
+from nn.nn_utils import compute_discriminative_factor, l0_sparsity
 
 
 class TrainerIWTA(TrainerEmbedding):
@@ -75,23 +72,24 @@ class TrainerIWTA(TrainerEmbedding):
                                       lr=self.LEARNING_RATE)
         return loss
 
-    def _init_online_measures(self):
-        online = super()._init_online_measures()
-        online['sparsity-h'] = MeanOnline()  # scalar
-        return online
-
     def _update_cached(self):
         labels = torch.cat(self.cached_labels)
         factors = {}
         convergence = {}
         for name, output in self.cached_output.items():
             output = torch.cat(output)
-            self.monitor.plot_assemblies(output, labels, name=name)
-            factors[name] = compute_discriminative_factor(output.numpy(),
-                                                          labels.numpy())
+            if name == 'y':
+                mean = [output[labels == label].mean(dim=0)
+                        for label in labels.unique()]
+                mean = torch.stack(mean)
+                self.monitor.clusters_heatmap(mean)
+            # self.monitor.plot_assemblies(output, labels, name=name)
+            factors[name] = compute_discriminative_factor(output, labels)
+            self.monitor.update_sparsity(l0_sparsity(output), mode=name)
+            output = output.int()
             if name in self.cached_output_prev:
-                flips = (self.cached_output_prev[name] ^ output).sum(dim=1)
-                convergence[name] = flips.float().mean() / output.size(1)
+                xor = (self.cached_output_prev[name] ^ output).sum(dim=1)
+                convergence[name] = xor.float().mean().item() / output.size(1)
             self.cached_output_prev[name] = output
         self.monitor.update_discriminative_factor(factors)
         self.monitor.update_output_convergence(convergence)
@@ -104,16 +102,6 @@ class TrainerIWTA(TrainerEmbedding):
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_dropout(self.model.weight_dropout())
         self._update_cached()
-
-        self.monitor.update_sparsity(self.online['sparsity'].get_mean(),
-                                     mode='y')
-        self.monitor.update_sparsity(self.online['sparsity-h'].get_mean(),
-                                     mode='h')
-        self.monitor.update_l1_neuron_norm(self.online['l1_norm'].get_mean())
-        # mean and std can be Nones
-        mean, std = self.online['clusters'].get_mean_std()
-        self.monitor.clusters_heatmap(mean=mean, std=std)
-        self.monitor.embedding_hist(activations=mean)
         TrainerGrad._epoch_finished(self, loss)
 
     def _on_forward_pass_batch(self, batch, output, train):
@@ -123,9 +111,7 @@ class TrainerIWTA(TrainerEmbedding):
             self.cached_labels.append(labels)
             self.cached_output['h'].append(h)
             self.cached_output['y'].append(y)
-            sparsity_h = compute_sparsity(h.float())
-            self.online['sparsity-h'].update(sparsity_h.cpu())
-        super()._on_forward_pass_batch(batch, y, train)
+        TrainerGrad._on_forward_pass_batch(self, batch, y, train)
 
     def _get_loss(self, batch, output):
         # In case of unsupervised learning, '_get_loss' is overridden

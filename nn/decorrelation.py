@@ -37,11 +37,12 @@ class TrainerIWTADecorrelation(TrainerIWTA):
 
 class RandomDataset(TensorDataset):
     def __init__(self, *args, **kwargs):
-        labels = torch.arange(x12.size(0))
         super().__init__(x12, labels)
 
 
 x12 = sample_bernoulli((100, N_x), p=s_x)
+labels = torch.arange(x12.size(0), device=x12.device)
+
 
 if WITH_PERMANENCE:
     w_xy = ParameterWithPermanence(torch.rand(N_x, N_y), sparsity=s_w_xy, learn=False)
@@ -68,8 +69,7 @@ print(iwta)
 
 data_loader = DataLoader(RandomDataset, transform=None,
                          loader_cls=NoShuffleLoader)
-criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0),
-                                   pairs_multiplier=5)
+criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0))
 trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
 trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)

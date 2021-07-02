@@ -28,7 +28,7 @@ class ParameterBinary(nn.Parameter):
         param = super().__new__(cls, data, requires_grad=False)
         assert data.unique().tolist() == [0, 1]
         param.learn = learn
-        param.permanence = data.clone().type(torch.float32)  # counts
+        param.permanence = data.clone().float()  # counts
         param.dropout = dropout
         param.excitatory = None
         return param
@@ -132,11 +132,11 @@ class KWTAFunction(torch.autograd.Function):
     def forward(ctx, x: torch.Tensor, k):
         assert k is not None
         x = torch.atleast_2d(x)
-        y = torch.zeros_like(x, dtype=torch.int32)
+        y = torch.zeros_like(x)
         if isinstance(k, int):
             winners = x.topk(k=k, dim=1, sorted=False).indices
-            y[torch.arange(x.shape[0], device=y.device).unsqueeze_(1),
-              winners] = 1
+            arange = torch.arange(x.shape[0], device=y.device).unsqueeze_(1)
+            y[arange, winners] = 1
         else:
             assert x.shape[0] == len(k)
             for trial_id, xi in enumerate(x):
@@ -223,9 +223,9 @@ class IterativeWTA(WTAInterface):
         x = torch.atleast_2d(x)
         y0 = x @ self.w_xy
         h0 = x @ self.w_xh
-        h = torch.zeros_like(h0, dtype=torch.int32)
-        y = torch.zeros_like(y0, dtype=torch.int32)
-        t_start = max(h0.max().item(), y0.max().item())
+        h = torch.zeros_like(h0)
+        y = torch.zeros_like(y0)
+        t_start = int(max(h0.max().item(), y0.max().item()))
         for threshold in range(t_start, 0, -1):
             z_h = h0
             if self.w_hh is not None:
@@ -239,8 +239,10 @@ class IterativeWTA(WTAInterface):
                 z_y += y @ self.w_yy
             z_y = z_y >= threshold
 
-            h |= z_h
-            y |= z_y
+            h += z_h
+            y += z_y
+            h.clamp_max_(1)
+            y.clamp_max_(1)
 
         # TODO the same hack should be for 'h'
         empty_trials = ~(y.any(dim=1))
@@ -264,9 +266,9 @@ class IterativeWTAInhSTDP(IterativeWTA):
         x = torch.atleast_2d(x)
         y0 = x @ self.w_xy
         h0 = x @ self.w_xh
-        h = torch.zeros_like(h0, dtype=torch.int32)
-        y = torch.zeros_like(y0, dtype=torch.int32)
-        t_start = max(h0.max().item(), y0.max().item())
+        h = torch.zeros_like(h0)
+        y = torch.zeros_like(y0)
+        t_start = int(max(h0.max().item(), y0.max().item()))
         for threshold in range(t_start, 0, -1):
             z_h = h0
             if self.w_hh is not None:
@@ -280,8 +282,10 @@ class IterativeWTAInhSTDP(IterativeWTA):
                 z_y += y @ self.w_yy
             z_y = z_y >= threshold
 
-            h |= z_h
-            y |= z_y
+            h += z_h
+            y += z_y
+            h.clamp_max_(1)
+            y.clamp_max_(1)
 
             self.history.append((z_h, z_y))
 

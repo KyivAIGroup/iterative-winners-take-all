@@ -18,8 +18,8 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
                   l not in labels[:i]]
         ax.legend(*zip(*unique))
 
-    # (N, samples)
     if isinstance(assemblies, np.ndarray):
+        # (N, samples) old format
         assemblies = [vec.nonzero()[0] for vec in assemblies.T]
     unique = set(np.concatenate(assemblies))
     hidden_start = max(unique) + 1
@@ -29,8 +29,6 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
         return
     if labels is None:
         labels = tuple(range(len(assemblies)))
-    elif isinstance(labels, torch.Tensor):
-        labels = labels.tolist()
     graph = nx.Graph()
     node_labels = defaultdict(list)
     for i, assembly in enumerate(assemblies):
