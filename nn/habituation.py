@@ -35,9 +35,6 @@ N_REPEATS_PEAK = 40
 class TrainerIWTAHabituation(TrainerIWTA):
     N_CHOOSE = None
 
-    def training_started(self):
-        pass
-
     def _update_cached(self):
         labels = torch.cat(self.cached_labels)
         labels_unique = labels.unique().tolist()

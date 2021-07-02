@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from graph import plot_assemblies
 from mighty.monitor.accuracy import calc_accuracy
@@ -153,29 +152,6 @@ class MonitorIWTA(MonitorEmbedding):
                 xlabel='Permanence',
                 ylabel='Count',
                 title=name,
-            ))
-
-    def update_pairwise_similarity(self, tensor, labels, name=''):
-        if len(labels.unique()) > 2:
-            # don't plot many histograms
-            return
-        tensor = tensor.float()
-        for label in labels.unique().tolist():
-            t = tensor[labels == label]
-            n_elem = len(t)
-            if n_elem == 1:
-                continue
-            cos = F.cosine_similarity(t.unsqueeze(1), t.unsqueeze(0), dim=2)
-            ii, jj = torch.triu_indices(row=n_elem, col=n_elem, offset=1)
-            cos = cos[ii, jj]
-            win = f"{name} label={label}"
-            self.viz.histogram(X=cos, win=win, opts=dict(
-                xlabel='Cosine similarity',
-                ylabel='Count',
-                numbins=20,
-                xtickmin=0,
-                xtickmax=1,
-                title=win,
             ))
 
     def update_discriminative_factor(self, factors: dict):

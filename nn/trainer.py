@@ -80,15 +80,6 @@ class TrainerIWTA(TrainerEmbedding):
         online['sparsity-h'] = MeanOnline()  # scalar
         return online
 
-    def training_started(self):
-        x, labels = [], []
-        for x_batch, labels_batch in self.data_loader.eval():
-            x.append(x_batch)
-            labels.append(labels_batch)
-        x = torch.cat(x)
-        labels = torch.cat(labels)
-        self.monitor.update_pairwise_similarity(x, labels, name='x')
-
     def _update_cached(self):
         labels = torch.cat(self.cached_labels)
         factors = {}
@@ -96,7 +87,6 @@ class TrainerIWTA(TrainerEmbedding):
         for name, output in self.cached_output.items():
             output = torch.cat(output)
             self.monitor.plot_assemblies(output, labels, name=name)
-            self.monitor.update_pairwise_similarity(output, labels, name=name)
             factors[name] = compute_discriminative_factor(output.numpy(),
                                                           labels.numpy())
             if name in self.cached_output_prev:
