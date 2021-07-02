@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from collections import defaultdict
 
 from mighty.monitor.accuracy import AccuracyEmbedding
 from mighty.trainer import TrainerEmbedding, TrainerGrad
@@ -16,7 +17,7 @@ from utils import compute_discriminative_factor
 class TrainerIWTA(TrainerEmbedding):
 
     watch_modules = TrainerEmbedding.watch_modules + (WTAInterface,)
-    N_CHOOSE = 1
+    N_CHOOSE = None
     LEARNING_RATE = 0.001
 
     def __init__(self,
@@ -33,7 +34,8 @@ class TrainerIWTA(TrainerEmbedding):
                          **kwargs)
         self.mutual_info.save_activations = self.mi_save_activations_y
         self.cached_labels = []
-        self.cached_output = []
+        self.cached_output = defaultdict(list)
+        self.cached_output_prev = {}
 
     def mi_save_activations_y(self, module, tin, tout):
         """
@@ -82,16 +84,6 @@ class TrainerIWTA(TrainerEmbedding):
         self.monitor.update_pairwise_similarity(x, labels, name='x')
         self.monitor.update_pairwise_similarity(y, labels, name='y')
 
-    def update_discriminative_factor(self):
-        if len(self.cached_labels) == 0:
-            return
-        labels_true = torch.cat(self.cached_labels).numpy()
-        output = torch.cat(self.cached_output).numpy()
-        factor = compute_discriminative_factor(output, labels_true)
-        self.monitor.update_discriminative_factor(factor)
-        self.cached_output.clear()
-        self.cached_labels.clear()
-
     def _epoch_finished(self, loss):
         kwta_thresholds = self.model.epoch_finished()
         self.monitor.update_kwta_thresholds(kwta_thresholds)
@@ -101,7 +93,23 @@ class TrainerIWTA(TrainerEmbedding):
         self.monitor.plot_assemblies(y, labels, name='y')
         self.monitor.update_pairwise_similarity(y, labels, name='y')
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
-        self.update_discriminative_factor()
+        self.monitor.update_weight_dropout(self.model.weight_dropout())
+
+        labels_true = torch.cat(self.cached_labels).numpy()
+        factors = {}
+        convergence = {}
+        for name, output in self.cached_output.items():
+            output = torch.cat(output).numpy()
+            factors[name] = compute_discriminative_factor(output, labels_true)
+            if name in self.cached_output_prev:
+                flips = (self.cached_output_prev[name] ^ output).mean().item()
+                convergence[name] = flips
+            self.cached_output_prev[name] = output
+        self.monitor.update_discriminative_factor(factors)
+        self.monitor.update_output_convergence(convergence)
+
+        self.cached_output.clear()
+        self.cached_labels.clear()
 
         self.monitor.update_sparsity(self.online['sparsity'].get_mean(),
                                      mode='y')
@@ -119,7 +127,8 @@ class TrainerIWTA(TrainerEmbedding):
         if train:
             x, labels = batch
             self.cached_labels.append(labels)
-            self.cached_output.append(y)
+            self.cached_output['h'].append(h)
+            self.cached_output['y'].append(y)
             sparsity_h = compute_sparsity(h.float())
             self.online['sparsity-h'].update(sparsity_h.cpu())
         super()._on_forward_pass_batch(batch, y, train)

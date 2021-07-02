@@ -80,6 +80,14 @@ class MonitorIWTA(MonitorEmbedding):
             legend=list(names),
         ))
 
+    def update_weight_dropout(self, dropout: dict):
+        names, dropout = zip(*dropout.items())
+        self.viz.line_update(y=dropout, opts=dict(
+            xlabel='Epoch',
+            title="Weight dropout",
+            legend=list(names),
+        ))
+
     def update_sign_flips_hist(self):
         for name, precord in self.param_records.items():
             if precord.sign_flips is None:
@@ -167,10 +175,22 @@ class MonitorIWTA(MonitorEmbedding):
                 title=win,
             ))
 
-    def update_discriminative_factor(self, factor: float):
-        if factor is not None:
-            self.viz.line_update(y=factor, opts=dict(
-                xlabel='Epoch',
-                ylabel='dist-other / dist-same',
-                title="Clustering discriminative factor",
-            ))
+    def update_discriminative_factor(self, factors: dict):
+        labels, factors = zip(*factors.items())
+        self.viz.line_update(y=factors, opts=dict(
+            xlabel='Epoch',
+            ylabel='dist-other / dist-same',
+            title="Clustering discriminative factor",
+            legend=list(labels),
+        ))
+
+    def update_output_convergence(self, convergence: dict):
+        if len(convergence) == 0:
+            return
+        labels, convergence = zip(*convergence.items())
+        self.viz.line_update(y=convergence, opts=dict(
+            xlabel='Epoch',
+            ylabel="mean(y ^ y_prev)",
+            title="Output convergence",
+            legend=list(labels),
+        ))

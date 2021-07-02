@@ -22,19 +22,40 @@ __all__ = [
 
 
 class ParameterBinary(nn.Parameter):
-    DROPOUT = 0.5
+    SPARSITY_DESIRED = (0.025, 0.2)
 
-    def __new__(cls, data: torch.Tensor, learn=True):
+    def __new__(cls, data: torch.Tensor, learn=True, dropout=0.5):
         param = super().__new__(cls, data, requires_grad=False)
         assert data.unique().tolist() == [0, 1]
         param.learn = learn
         param.permanence = data.clone().type(torch.float32)  # counts
+        param.dropout = dropout
+        param.excitatory = None
         return param
+
+    @property
+    def sparsity(self):
+        return self.data.count_nonzero().item() / self.nelement()
+
+    def update_dropout(self, output_sparsity: float, gamma=0.5):
+        dropout_inc = gamma * 0.95 + (1 - gamma) * self.dropout
+        dropout_dec = gamma * 0.05 + (1 - gamma) * self.dropout
+        dropout = self.dropout
+        s_min, s_max = self.SPARSITY_DESIRED
+        if output_sparsity > s_max:
+            dropout = dropout_inc if self.excitatory else dropout_dec
+        elif output_sparsity < s_min:
+            dropout = dropout_dec if self.excitatory else dropout_inc
+        return dropout
 
     def update(self, x_pre, x_post, n_choose=1):
         if not self.learn:
             # not learnable
             return
+        output_sparsity = x_post.count_nonzero().item() / x_post.nelement()
+        if n_choose is not None:
+            n_choose = int(n_choose * (1 - output_sparsity))
+        self.dropout = self.update_dropout(output_sparsity)
         for x, y in zip(x_pre, x_post):
             x = x.nonzero(as_tuple=True)[0]
             y = y.nonzero(as_tuple=True)[0]
@@ -48,15 +69,15 @@ class ParameterBinary(nn.Parameter):
 
     def normalize(self):
         if not self.learn:
-            return
+            return None
         self.permanence.clamp_min_(0)
         # self.permanence /= self.permanence.max()  # only to avoid overflow
         perm = self.permanence.view(-1)
         perm = perm[perm.nonzero(as_tuple=True)[0]]
         n_active = len(perm)
-        n_drop = int(self.DROPOUT * n_active)
+        n_drop = max(1, int(self.dropout * n_active))
         threshold = perm.kthvalue(n_drop).values.item()  # k-th smallest value
-        if threshold == perm.min():
+        if threshold == perm.max():
             # avoid a matrix full of zeros
             return threshold
         self.permanence[self.permanence <= threshold] = 0
@@ -83,10 +104,6 @@ class ParameterWithPermanence(ParameterBinary):
         param.n_active = n_active
         return param
 
-    @property
-    def sparsity(self):
-        return self.n_active / self.data.nelement()
-
     def update(self, x_pre, x_post, lr=0.001):
         if not self.learn:
             # not learnable
@@ -99,13 +116,13 @@ class ParameterWithPermanence(ParameterBinary):
 
     def normalize(self):
         if not self.learn:
-            return
+            return None
         self.permanence.clamp_min_(0)
         presum = self.permanence.sum(dim=0, keepdim=True)
         self.permanence /= presum
         return super().normalize()
         perm = self.permanence.view(-1)
-        threshold = perm.view(-1).topk(self.n_active).values[-1]
+        threshold = perm.view(-1).topk(self.n_active).values[-1].item()
         self.data[:] = self.permanence > threshold
         return threshold
 
@@ -131,6 +148,15 @@ class KWTAFunction(torch.autograd.Function):
 class WTAInterface(nn.Module):
     def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None):
         super().__init__()
+        w_xy.excitatory = True
+        w_xh.excitatory = True
+        w_hy.excitatory = False
+        if w_yy is not None:
+            w_yy.excitatory = True
+        if w_hh is not None:
+            w_hh.excitatory = False
+        if w_yh is not None:
+            w_yh.excitatory = True
         self.w_xy = w_xy
         self.w_xh = w_xh
         self.w_hy = w_hy
@@ -162,9 +188,15 @@ class WTAInterface(nn.Module):
         return kwta_thresholds
 
     def weight_sparsity(self):
-        sparsity = {name: compute_sparsity(param.data.float())
+        sparsity = {name: param.sparsity
                     for name, param in self.named_parameters()}
         return sparsity
+
+    def weight_dropout(self):
+        dropout = {name: param.dropout
+                   for name, param in self.named_parameters()
+                   if param.learn}
+        return dropout
 
 
 class KWTANet(WTAInterface):

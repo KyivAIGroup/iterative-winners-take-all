@@ -4,29 +4,30 @@ import torch.nn as nn
 from torch.utils.data import TensorDataset
 
 from mighty.loss import ContrastiveLossSampler
-from mighty.monitor.mutual_info import *
 from mighty.utils.common import set_seed
 from mighty.utils.data import DataLoader
 from nn.kwta import *
 from nn.trainer import TrainerIWTA
-from nn.nn_utils import NoShuffleLoader, get_optimizer_scheduler
+from nn.nn_utils import NoShuffleLoader, sample_bernoulli
+from mighty.utils.domain import MonitorLevel
 
 set_seed(0)
 
 N_x = N_y = N_h = 200
 s_x = 0.1
-s_w_xh = 0.05
+s_w_xh = 0.1
 s_w_xy = 0.1
 s_w_hy = 0.1
-s_w_yy = 0.01
-s_w_hh = 0.05
-s_w_yh = 0.05
+s_w_yy = 0.1
+s_w_hh = 0.1
+s_w_yh = 0.1
 
 N_CLASSES = 2
 N_SAMPLES_PER_CLASS = 500
 
 
 class TrainerIWTAClustering(TrainerIWTA):
+    N_CHOOSE = 100
     pass
 
 
@@ -38,44 +39,36 @@ class NoisyCentroids(TensorDataset):
 centroids = np.random.binomial(1, s_x, size=(N_x, N_CLASSES))
 assert centroids.any(axis=0).all(), "Pick another seed"
 
-xs = np.repeat(centroids, repeats=N_SAMPLES_PER_CLASS, axis=1)
+xs = np.repeat(centroids, repeats=N_SAMPLES_PER_CLASS, axis=1).T
 labels = np.repeat(np.arange(N_CLASSES), N_SAMPLES_PER_CLASS)
-white_noise = np.random.binomial(1, 0.05, size=xs.shape)
+white_noise = np.random.binomial(1, 0.2 * s_x, size=xs.shape)
 xs ^= white_noise
+shuffle_idx = np.random.permutation(len(xs))
+xs = xs[shuffle_idx]
+labels = labels[shuffle_idx]
 
-xs = torch.from_numpy(xs.T).type(torch.int32)
+xs = torch.from_numpy(xs).type(torch.int32)
 labels = torch.from_numpy(labels)
 
-w_xy = ParameterWithPermanence(torch.rand(N_x, N_y), sparsity=s_w_xy, learn=False)
-w_xh = ParameterWithPermanence(torch.rand(N_x, N_h), sparsity=s_w_xh, learn=False)
-w_hy = ParameterWithPermanence(torch.rand(N_h, N_y), sparsity=s_w_hy)
-w_hh = ParameterWithPermanence(torch.rand(N_h, N_h), sparsity=s_w_hh, learn=False)
-w_yh = ParameterWithPermanence(torch.rand(N_y, N_h), sparsity=s_w_yh, learn=False)
-w_yy = ParameterWithPermanence(torch.rand(N_y, N_y), sparsity=s_w_yy)
-# w_yy = None
+w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
+w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
+w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True, dropout=0.5)
+w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True, dropout=0.5)
+w_yy = ParameterBinary(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True, dropout=0.5)
+# w_yy = ParameterWithPermanence(torch.rand(N_y, N_y), sparsity=s_w_yy, learn=True)
+w_yh = ParameterBinary(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True, dropout=0.5)
+# w_yh = None
 
 data_loader = DataLoader(NoisyCentroids, transform=None,
                          loader_cls=NoShuffleLoader)
 criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0),
                                    pairs_multiplier=5)
 
-SOFT = True
-if SOFT:
-    iwta = IterativeWTASoft(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
-    optimizer, scheduler = get_optimizer_scheduler(iwta)
-    trainer = TrainerIWTAClustering(model=iwta,
-                                    criterion=criterion,
-                                    data_loader=data_loader,
-                                    optimizer=optimizer,
-                                    scheduler=scheduler,
-                                    verbosity=1)
-else:
-    iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
-    trainer = TrainerIWTAClustering(model=iwta,
-                                    criterion=criterion,
-                                    data_loader=data_loader,
-                                    verbosity=1)
+iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
+# iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
 print(iwta)
-# trainer.monitor.advanced_monitoring(level=MonitorLevel.FULL)
-iwta.set_monitor(trainer.monitor)
-trainer.train(n_epochs=20, mutual_info_layers=0)
+
+trainer = TrainerIWTAClustering(model=iwta, criterion=criterion,
+                                   data_loader=data_loader, verbosity=1)
+trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)
+trainer.train(n_epochs=50)

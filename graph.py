@@ -12,6 +12,12 @@ from scipy.spatial import ConvexHull
 
 def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
                     title=None):
+    def plot_unique_legend(ax):
+        handles, labels = ax.get_legend_handles_labels()
+        unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if
+                  l not in labels[:i]]
+        ax.legend(*zip(*unique))
+
     # (N, samples)
     if isinstance(assemblies, np.ndarray):
         assemblies = [vec.nonzero()[0] for vec in assemblies.T]
@@ -57,7 +63,7 @@ def plot_assemblies(assemblies, n_hidden=2, pos=None, fixed=None, labels=None,
     nx.draw_networkx_labels(graph, pos=pos, labels=node_labels,
                             font_size=6, alpha=0.7, ax=ax)
     ax.set_title(title)
-    ax.legend()
+    plot_unique_legend(ax)
 
     nodes, locations = zip(*pos.items())
     locations = np.array(locations)

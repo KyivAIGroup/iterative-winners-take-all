@@ -31,7 +31,9 @@ def compute_discriminative_factor(array, labels):
         dist_other = dist[mask_same][:, ~mask_same]
         # squareform excludes zeros on the main diagonal of dist_same
         dist_same = squareform(dist_same).mean()
-        factor.append(dist_other / dist_same)
+        if dist_same != 0:
+            # all vectors degenerated in a single vector
+            factor.append(dist_other.mean() / dist_same)
     if len(factor) == 0:
         return None
     factor = np.mean(factor)
