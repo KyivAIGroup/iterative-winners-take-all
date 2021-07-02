@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import warnings
 
 from mighty.utils.signal import compute_sparsity
-from nn.nn_utils import random_choice
+from nn.nn_utils import random_choice, l0_sparsity
 
 __all__ = [
     "ParameterWithPermanence",
@@ -35,7 +35,7 @@ class ParameterBinary(nn.Parameter):
 
     @property
     def sparsity(self):
-        return self.data.count_nonzero().item() / self.nelement()
+        return l0_sparsity(self.data)
 
     def update_dropout(self, output_sparsity: float, gamma=0.5):
         dropout_inc = gamma * 0.95 + (1 - gamma) * self.dropout
@@ -52,7 +52,7 @@ class ParameterBinary(nn.Parameter):
         if not self.learn:
             # not learnable
             return
-        output_sparsity = x_post.count_nonzero().item() / x_post.nelement()
+        output_sparsity = l0_sparsity(x_post)
         if n_choose is not None:
             n_choose = int(n_choose * (1 - output_sparsity))
         self.dropout = self.update_dropout(output_sparsity)

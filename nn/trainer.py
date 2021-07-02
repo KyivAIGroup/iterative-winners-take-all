@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 from collections import defaultdict
 
 from mighty.monitor.accuracy import AccuracyEmbedding
@@ -12,6 +13,7 @@ from mighty.utils.var_online import MeanOnline
 from nn.kwta import WTAInterface, IterativeWTASoft
 from nn.monitor import MonitorIWTA
 from utils import compute_discriminative_factor
+from nn.nn_utils import l0_sparsity
 
 
 class TrainerIWTA(TrainerEmbedding):
@@ -79,37 +81,39 @@ class TrainerIWTA(TrainerEmbedding):
         return online
 
     def training_started(self):
-        x, labels = self.data_loader.sample()
-        h, y = self.model(x)
+        x, labels = [], []
+        for x_batch, labels_batch in self.data_loader.eval():
+            x.append(x_batch)
+            labels.append(labels_batch)
+        x = torch.cat(x)
+        labels = torch.cat(labels)
         self.monitor.update_pairwise_similarity(x, labels, name='x')
-        self.monitor.update_pairwise_similarity(y, labels, name='y')
+
+    def _update_cached(self):
+        labels = torch.cat(self.cached_labels)
+        factors = {}
+        convergence = {}
+        for name, output in self.cached_output.items():
+            output = torch.cat(output)
+            self.monitor.plot_assemblies(output, labels, name=name)
+            self.monitor.update_pairwise_similarity(output, labels, name=name)
+            factors[name] = compute_discriminative_factor(output.numpy(),
+                                                          labels.numpy())
+            if name in self.cached_output_prev:
+                flips = (self.cached_output_prev[name] ^ output).sum(dim=1)
+                convergence[name] = flips.float().mean() / output.size(1)
+            self.cached_output_prev[name] = output
+        self.monitor.update_discriminative_factor(factors)
+        self.monitor.update_output_convergence(convergence)
+        self.cached_output.clear()
+        self.cached_labels.clear()
 
     def _epoch_finished(self, loss):
         kwta_thresholds = self.model.epoch_finished()
         self.monitor.update_kwta_thresholds(kwta_thresholds)
-        x, labels = self.data_loader.sample()
-        h, y = self.model(x)
-        self.monitor.plot_assemblies(h, labels, name='h')
-        self.monitor.plot_assemblies(y, labels, name='y')
-        self.monitor.update_pairwise_similarity(y, labels, name='y')
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_dropout(self.model.weight_dropout())
-
-        labels_true = torch.cat(self.cached_labels).numpy()
-        factors = {}
-        convergence = {}
-        for name, output in self.cached_output.items():
-            output = torch.cat(output).numpy()
-            factors[name] = compute_discriminative_factor(output, labels_true)
-            if name in self.cached_output_prev:
-                flips = (self.cached_output_prev[name] ^ output).mean().item()
-                convergence[name] = flips
-            self.cached_output_prev[name] = output
-        self.monitor.update_discriminative_factor(factors)
-        self.monitor.update_output_convergence(convergence)
-
-        self.cached_output.clear()
-        self.cached_labels.clear()
+        self._update_cached()
 
         self.monitor.update_sparsity(self.online['sparsity'].get_mean(),
                                      mode='y')

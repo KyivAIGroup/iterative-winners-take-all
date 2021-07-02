@@ -42,8 +42,8 @@ class MonitorIWTA(MonitorEmbedding):
         if labels is not None:
             # take at most 2 classes 2 samples each
             idx = []
-            for class_id in labels.unique()[:2]:
-                take = (labels == class_id).nonzero(as_tuple=True)[0][:2]
+            for label in labels.unique()[:2]:
+                take = (labels == label).nonzero(as_tuple=True)[0][:2]
                 idx.extend(take.tolist())
             assemblies = assemblies[idx]
             labels = labels[idx]
@@ -156,6 +156,9 @@ class MonitorIWTA(MonitorEmbedding):
             ))
 
     def update_pairwise_similarity(self, tensor, labels, name=''):
+        if len(labels.unique()) > 2:
+            # don't plot many histograms
+            return
         tensor = tensor.float()
         for label in labels.unique().tolist():
             t = tensor[labels == label]
@@ -193,4 +196,16 @@ class MonitorIWTA(MonitorEmbedding):
             ylabel="mean(y ^ y_prev)",
             title="Output convergence",
             legend=list(labels),
+        ))
+
+    def update_sparsity_per_label(self, sparsity: dict):
+        if sparsity["p(x)"] is None:
+            return
+        labels, sparsity = zip(*sparsity.items())
+        sparsity = np.stack(sparsity, axis=1)
+        title = "Habituation"
+        self.viz.bar(sparsity, win=title, opts=dict(
+            stacked=False,
+            legend=list(labels),
+            title=title
         ))

@@ -40,3 +40,7 @@ def get_kwta_threshold(tensor: torch.Tensor, sparsity: float):
     threshold = topk[:, [-2, -1]].mean(dim=1)
     threshold = threshold.unsqueeze(1)
     return threshold
+
+
+def l0_sparsity(tensor):
+    return tensor.count_nonzero().item() / tensor.nelement()

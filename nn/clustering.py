@@ -22,8 +22,8 @@ s_w_yy = 0.1
 s_w_hh = 0.1
 s_w_yh = 0.1
 
-N_CLASSES = 2
-N_SAMPLES_PER_CLASS = 500
+N_CLASSES = 10
+N_SAMPLES_PER_CLASS = 100
 
 
 class TrainerIWTAClustering(TrainerIWTA):
