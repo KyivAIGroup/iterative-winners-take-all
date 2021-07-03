@@ -76,6 +76,7 @@ class TrainerIWTA(TrainerEmbedding):
         labels = torch.cat(self.cached_labels)
         factors = {}
         convergence = {}
+        sparsity = {}
         for name, output in self.cached_output.items():
             output = torch.cat(output)
             if name == 'y':
@@ -85,7 +86,7 @@ class TrainerIWTA(TrainerEmbedding):
                 self.monitor.clusters_heatmap(mean)
             # self.monitor.plot_assemblies(output, labels, name=name)
             factors[name] = compute_discriminative_factor(output, labels)
-            self.monitor.update_sparsity(l0_sparsity(output), mode=name)
+            sparsity[name] = l0_sparsity(output)
             output = output.int()
             if name in self.cached_output_prev:
                 xor = (self.cached_output_prev[name] ^ output).sum(dim=1)
@@ -93,8 +94,13 @@ class TrainerIWTA(TrainerEmbedding):
             self.cached_output_prev[name] = output
         self.monitor.update_discriminative_factor(factors)
         self.monitor.update_output_convergence(convergence)
+        self.monitor.update_sparsity(sparsity)
         self.cached_output.clear()
         self.cached_labels.clear()
+
+    def training_started(self):
+        self.monitor.update_weight_sparsity(self.model.weight_sparsity())
+        self.monitor.update_weight_dropout(self.model.weight_dropout())
 
     def _epoch_finished(self, loss):
         kwta_thresholds = self.model.epoch_finished()

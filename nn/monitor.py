@@ -142,10 +142,14 @@ class MonitorIWTA(MonitorEmbedding):
             learn = getattr(precord.param, "learn", None)
             if permanence is None or not learn:
                 continue
-            self.viz.histogram(X=permanence.view(-1), win=name, opts=dict(
+            permanence = permanence.view(-1)
+            permanence = permanence[permanence.nonzero(as_tuple=True)[0]]
+            self.viz.histogram(X=permanence, win=name, opts=dict(
                 xlabel='Permanence',
                 ylabel='Count',
                 title=name,
+                ytype='log',
+                xtype='log',
             ))
 
     def update_discriminative_factor(self, factors: dict):
@@ -179,3 +183,15 @@ class MonitorIWTA(MonitorEmbedding):
             legend=list(labels),
             title=title
         ))
+
+    def update_sparsity(self, sparsity, mode=None):
+        if isinstance(sparsity, dict):
+            labels, sparsity = zip(*sparsity.items())
+            self.viz.line_update(y=sparsity, opts=dict(
+                xlabel='Epoch',
+                ylabel='||y||_0 / size(y)',
+                title="Output L0 sparsity",
+                legend=list(labels),
+            ))
+        else:
+            super().update_sparsity(sparsity, mode)

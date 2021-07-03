@@ -19,12 +19,7 @@ set_seed(0)
 
 N_x = N_y = N_h = 200
 s_x = 0.1
-s_w_xh = 0.05
-s_w_xy = 0.05
-s_w_hy = 0.1
-s_w_yy = 0.01
-s_w_hh = 0.1
-s_w_yh = 0.05
+s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
 
 WITH_PERMANENCE = False
 
@@ -73,4 +68,4 @@ criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0))
 trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
 trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)
-trainer.train(n_epochs=25)
+trainer.train(n_epochs=50)

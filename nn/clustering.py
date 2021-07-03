@@ -15,12 +15,9 @@ set_seed(0)
 
 N_x = N_y = N_h = 200
 s_x = 0.1
-s_w_xh = 0.1
-s_w_xy = 0.1
-s_w_hy = 0.1
-s_w_yy = 0.1
-s_w_hh = 0.1
-s_w_yh = 0.1
+s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
+s_w_hh = s_w_hy = 0.3
+
 
 N_CLASSES = 10
 N_SAMPLES_PER_CLASS = 100
@@ -55,11 +52,11 @@ if torch.cuda.is_available():
 
 w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
 w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
-w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True, dropout=0.5)
-w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True, dropout=0.5)
-w_yy = ParameterBinary(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True, dropout=0.5)
+w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
+w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
+w_yy = ParameterBinary(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
 # w_yy = ParameterWithPermanence(torch.rand(N_y, N_y), sparsity=s_w_yy, learn=True)
-w_yh = ParameterBinary(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True, dropout=0.5)
+w_yh = ParameterBinary(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
 # w_yh = None
 
 data_loader = DataLoader(NoisyCentroids, transform=None,
@@ -73,4 +70,4 @@ print(iwta)
 trainer = TrainerIWTAClustering(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
 trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)
-trainer.train(n_epochs=50)
+trainer.train(n_epochs=100)

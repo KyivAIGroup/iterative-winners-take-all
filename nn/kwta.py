@@ -3,9 +3,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import warnings
+import random
 
 from mighty.utils.signal import compute_sparsity
 from nn.nn_utils import random_choice, l0_sparsity
+from mighty.utils.var_online import MeanOnline
 
 __all__ = [
     "ParameterWithPermanence",
@@ -22,16 +24,41 @@ __all__ = [
 
 
 class ParameterBinary(nn.Parameter):
-    SPARSITY_DESIRED = (0.025, 0.2)
+    SPARSITY_DESIRED = (0.025, 0.1)
+    SPARSITY_TARGET = 0.05
 
-    def __new__(cls, data: torch.Tensor, learn=True, dropout=0.5):
+    def __new__(cls, data: torch.Tensor, learn=True):
+        dropout = random.uniform(0.05, 0.95)
         param = super().__new__(cls, data, requires_grad=False)
         assert data.unique().tolist() == [0, 1]
         param.learn = learn
-        param.permanence = data.clone().float()  # counts
-        param.dropout = dropout
+        param.permanence = data.clone().float() if learn else None
+        param.dropout = dropout if learn else None
         param.excitatory = None
+        param.output_sparsity = MeanOnline()
+        param.sp_rmean = None  # output sparsity running mean
         return param
+
+    def update_dropout2(self, sparsity: float, gamma=0.5, gamma_slow=0.1):
+        if self.sp_rmean is None:
+            self.sp_rmean = sparsity
+        else:
+            ds = sparsity - self.sp_rmean
+            self.sp_rmean = gamma_slow * sparsity + (1 - gamma_slow) * self.sp_rmean
+            print(self.sp_rmean, sparsity, abs(ds) < 0.01)
+            if abs(ds) < 0.01:
+                return self.dropout
+        ds = sparsity - self.SPARSITY_TARGET
+        dropout_inc = ds * self.dropout
+        if not self.excitatory:
+            dropout_inc *= -1
+        dropout = self.dropout + dropout_inc
+        dropout = max(0.05, min(dropout, 0.95))
+        dropout = dropout * gamma + (1 - gamma) * self.dropout
+        if self.excitatory:
+            dropout *= 0.99
+            dropout = max(0.05, dropout)
+        return dropout
 
     @property
     def sparsity(self):
@@ -53,9 +80,9 @@ class ParameterBinary(nn.Parameter):
             # not learnable
             return
         output_sparsity = l0_sparsity(x_post)
+        self.output_sparsity.update(torch.Tensor([output_sparsity]))
         if n_choose is not None:
             n_choose = int(n_choose * (1 - output_sparsity))
-        self.dropout = self.update_dropout(output_sparsity)
         for x, y in zip(x_pre, x_post):
             x = x.nonzero(as_tuple=True)[0]
             y = y.nonzero(as_tuple=True)[0]
@@ -70,16 +97,23 @@ class ParameterBinary(nn.Parameter):
     def normalize(self):
         if not self.learn:
             return None
+        sparsity = self.output_sparsity.get_mean().item()
+        self.dropout = self.update_dropout(sparsity)
+        self.output_sparsity.reset()
         self.permanence.clamp_min_(0)
         # self.permanence /= self.permanence.max()  # only to avoid overflow
         perm = self.permanence.view(-1)
         perm = perm[perm.nonzero(as_tuple=True)[0]]
+        pmax = perm.max()
+        perm = perm[perm != pmax]  # the max element should survive
         n_active = len(perm)
-        n_drop = max(1, int(self.dropout * n_active))
-        threshold = perm.kthvalue(n_drop).values.item()  # k-th smallest value
-        if threshold == perm.max():
-            # avoid a matrix full of zeros
-            return threshold
+        if n_active > 0:
+            n_drop = max(1, int(self.dropout * n_active))
+            # find k-th smallest value
+            threshold = perm.kthvalue(n_drop).values.item()
+        else:
+            # pick any value in (0, pmax) range exclusively
+            threshold = 0.5 * pmax
         self.permanence[self.permanence <= threshold] = 0
         self.data[:] = self.permanence > 0
         return threshold
@@ -194,8 +228,7 @@ class WTAInterface(nn.Module):
 
     def weight_dropout(self):
         dropout = {name: param.dropout
-                   for name, param in self.named_parameters()
-                   if param.learn}
+                   for name, param in self.named_parameters()}
         return dropout
 
 

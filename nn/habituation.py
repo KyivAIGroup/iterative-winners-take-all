@@ -20,12 +20,7 @@ set_seed(0)
 
 N_x = N_y = N_h = 200
 s_x = 0.1
-s_w_xh = 0.05
-s_w_xy = 0.05
-s_w_hy = 0.1
-s_w_yy = 0.01
-s_w_hh = 0.1
-s_w_yh = 0.05
+s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
 
 N_UNIQUE = 10
 N_REPEATS = 100
@@ -44,8 +39,8 @@ class TrainerIWTAHabituation(TrainerIWTA):
             output = torch.cat(output).int()
             sparsity = torch.zeros(len(labels_unique))
             if name in self.cached_output_prev:
-                flips = (self.cached_output_prev[name] ^ output).sum(dim=1)
-                convergence[name] = flips.float().mean() / output.size(1)
+                xor = (self.cached_output_prev[name] ^ output).sum(dim=1)
+                convergence[name] = xor.float().mean().item() / output.size(1)
             self.cached_output_prev[name] = output
             for label in labels_unique:
                 mask = labels == label
@@ -75,8 +70,8 @@ p_x = label_counts.cpu() / len(labels)
 
 w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
 w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
-w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True, dropout=0.5)
-w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True, dropout=0.5)
+w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
+w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
 w_yy = ParameterBinary(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
 w_yh = ParameterBinary(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
 # w_yy = None
