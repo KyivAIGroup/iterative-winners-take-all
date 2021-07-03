@@ -39,13 +39,12 @@ class ParameterBinary(nn.Parameter):
         param.sp_rmean = None  # output sparsity running mean
         return param
 
-    def update_dropout2(self, sparsity: float, gamma=0.5, gamma_slow=0.1):
+    def update_dropout(self, sparsity: float, gamma=0.5, gamma_slow=0.1):
         if self.sp_rmean is None:
             self.sp_rmean = sparsity
         else:
             ds = sparsity - self.sp_rmean
             self.sp_rmean = gamma_slow * sparsity + (1 - gamma_slow) * self.sp_rmean
-            print(self.sp_rmean, sparsity, abs(ds) < 0.01)
             if abs(ds) < 0.01:
                 return self.dropout
         ds = sparsity - self.SPARSITY_TARGET
@@ -64,7 +63,7 @@ class ParameterBinary(nn.Parameter):
     def sparsity(self):
         return l0_sparsity(self.data)
 
-    def update_dropout(self, output_sparsity: float, gamma=0.5):
+    def update_dropout2(self, output_sparsity: float, gamma=0.05):
         dropout_inc = gamma * 0.95 + (1 - gamma) * self.dropout
         dropout_dec = gamma * 0.05 + (1 - gamma) * self.dropout
         dropout = self.dropout
@@ -75,7 +74,7 @@ class ParameterBinary(nn.Parameter):
             dropout = dropout_dec if self.excitatory else dropout_inc
         return dropout
 
-    def update(self, x_pre, x_post, n_choose=1):
+    def update(self, x_pre, x_post, n_choose=1, lr=0.001):
         if not self.learn:
             # not learnable
             return
@@ -88,11 +87,11 @@ class ParameterBinary(nn.Parameter):
             y = y.nonzero(as_tuple=True)[0]
             if n_choose is None:
                 # full outer product
-                self.permanence[x.unsqueeze(1), y] += 1
+                self.permanence[x.unsqueeze(1), y] += lr
             else:
                 x = random_choice(x, n_choose=n_choose)
                 y = random_choice(y, n_choose=n_choose)
-                self.permanence[x, y] += 1
+                self.permanence[x, y] += lr
 
     def normalize(self):
         if not self.learn:
@@ -101,6 +100,9 @@ class ParameterBinary(nn.Parameter):
         self.dropout = self.update_dropout(sparsity)
         self.output_sparsity.reset()
         self.permanence.clamp_min_(0)
+        presum = self.permanence.sum(dim=0, keepdim=True)
+        presum += 1e-10
+        self.permanence /= presum
         # self.permanence /= self.permanence.max()  # only to avoid overflow
         perm = self.permanence.view(-1)
         perm = perm[perm.nonzero(as_tuple=True)[0]]
@@ -409,9 +411,9 @@ class IterativeWTASparse(IterativeWTA):
         x = torch.atleast_2d(x)
         y0 = x @ self.w_xy
         h0 = x @ self.w_xh
-        h = torch.zeros_like(h0, dtype=torch.int32)
-        y = torch.zeros_like(y0, dtype=torch.int32)
-        t_start = max(h0.max().item(), y0.max().item())
+        h = torch.zeros_like(h0)
+        y = torch.zeros_like(y0)
+        t_start = int(max(h0.max().item(), y0.max().item()))
         z_h_prev = torch.zeros_like(h)
         z_y_prev = torch.zeros_like(y)
         for threshold in range(t_start, 0, -1):
@@ -420,17 +422,19 @@ class IterativeWTASparse(IterativeWTA):
                 z_h = z_h - z_h_prev @ self.w_hh
             if self.w_yh is not None:
                 z_h = z_h + z_y_prev @ self.w_yh
-            z_h = (z_h >= threshold).int()
+            z_h = (z_h >= threshold).float()
 
             z_y = y0 - z_h @ self.w_hy
             if self.w_yy is not None:
                 z_y += z_y_prev @ self.w_yy
-            z_y = (z_y >= threshold).int()
+            z_y = (z_y >= threshold).float()
 
             z_h_prev = z_h
             z_y_prev = z_y
-            h |= z_h
-            y |= z_y
+            h += z_h
+            y += z_y
+            h.clamp_max_(1)
+            y.clamp_max_(1)
 
         # TODO the same hack should be for 'h'
         empty_trials = ~(y.any(dim=1))
