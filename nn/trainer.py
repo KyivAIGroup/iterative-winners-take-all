@@ -97,17 +97,21 @@ class TrainerIWTA(TrainerEmbedding):
         self.monitor.update_sparsity(sparsity)
         self.cached_output.clear()
         self.cached_labels.clear()
+        if self.timer.epoch == self.timer.n_epochs:
+            print(f"{convergence=}")
+            print(f"{sparsity=}")
+            print(f"{factors=}")
 
     def training_started(self):
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_dropout(self.model.weight_dropout())
 
     def _epoch_finished(self, loss):
-        kwta_thresholds = self.model.epoch_finished()
-        self.monitor.update_kwta_thresholds(kwta_thresholds)
+        self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_dropout(self.model.weight_dropout())
         self._update_cached()
+        self.model.epoch_finished()
         TrainerGrad._epoch_finished(self, loss)
 
     def _on_forward_pass_batch(self, batch, output, train):

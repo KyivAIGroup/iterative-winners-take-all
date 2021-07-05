@@ -8,15 +8,15 @@ from mighty.utils.common import set_seed
 from mighty.utils.data import DataLoader
 from nn.kwta import *
 from nn.trainer import TrainerIWTA
-from nn.nn_utils import NoShuffleLoader, sample_bernoulli
+from nn.nn_utils import NoShuffleLoader, sample_bernoulli, compute_discriminative_factor
 from mighty.utils.domain import MonitorLevel
+from mighty.monitor.accuracy import AccuracyEmbedding, calc_accuracy
 
 set_seed(0)
 
 N_x = N_y = N_h = 200
-s_x = 0.1
+s_x = 0.5
 s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
-s_w_hh = s_w_hy = 0.3
 
 
 N_CLASSES = 10
@@ -33,12 +33,21 @@ class NoisyCentroids(TensorDataset):
         super().__init__(xs, labels)
 
 
+def print_info_x():
+    acc = AccuracyEmbedding(cache=True)
+    acc.partial_fit(xs, labels)
+    labels_pred = acc.predict_cached()
+    acc.reset()
+    print(f"{calc_accuracy(labels_pred, labels.cpu())=}")
+    print(f"{compute_discriminative_factor(xs, labels)=}")
+
+
 centroids = np.random.binomial(1, s_x, size=(N_x, N_CLASSES))
 assert centroids.any(axis=0).all(), "Pick another seed"
 
 xs = np.repeat(centroids, repeats=N_SAMPLES_PER_CLASS, axis=1).T
 labels = np.repeat(np.arange(N_CLASSES), N_SAMPLES_PER_CLASS)
-white_noise = np.random.binomial(1, 0.2 * s_x, size=xs.shape)
+white_noise = np.random.binomial(1, 0.5, size=xs.shape)
 xs ^= white_noise
 shuffle_idx = np.random.permutation(len(xs))
 xs = xs[shuffle_idx]
@@ -49,6 +58,8 @@ labels = torch.from_numpy(labels)
 if torch.cuda.is_available():
     xs = xs.cuda()
     labels = labels.cuda()
+
+print_info_x()
 
 w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
 w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
@@ -70,4 +81,4 @@ print(iwta)
 trainer = TrainerIWTAClustering(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
 trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)
-trainer.train(n_epochs=100)
+trainer.train(n_epochs=50)

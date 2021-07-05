@@ -35,7 +35,7 @@ class ParameterBinary(nn.Parameter):
         param.permanence = data.clone().float() if learn else None
         param.dropout = dropout if learn else None
         param.excitatory = None
-        param.output_sparsity = MeanOnline()
+        param.threshold = MeanOnline()
         param.sp_rmean = None  # output sparsity running mean
         return param
 
@@ -45,6 +45,7 @@ class ParameterBinary(nn.Parameter):
         else:
             ds = sparsity - self.sp_rmean
             self.sp_rmean = gamma_slow * sparsity + (1 - gamma_slow) * self.sp_rmean
+            # print(self.sp_rmean, ds, abs(ds) < 0.01)
             if abs(ds) < 0.01:
                 return self.dropout
         ds = sparsity - self.SPARSITY_TARGET
@@ -63,7 +64,10 @@ class ParameterBinary(nn.Parameter):
     def sparsity(self):
         return l0_sparsity(self.data)
 
-    def update_dropout2(self, output_sparsity: float, gamma=0.05):
+    def reset(self):
+        self.threshold.reset()
+
+    def update_dropout2(self, output_sparsity: float, gamma=0.1):
         dropout_inc = gamma * 0.95 + (1 - gamma) * self.dropout
         dropout_dec = gamma * 0.05 + (1 - gamma) * self.dropout
         dropout = self.dropout
@@ -79,7 +83,7 @@ class ParameterBinary(nn.Parameter):
             # not learnable
             return
         output_sparsity = l0_sparsity(x_post)
-        self.output_sparsity.update(torch.Tensor([output_sparsity]))
+        self.dropout = self.update_dropout(output_sparsity)
         if n_choose is not None:
             n_choose = int(n_choose * (1 - output_sparsity))
         for x, y in zip(x_pre, x_post):
@@ -92,13 +96,11 @@ class ParameterBinary(nn.Parameter):
                 x = random_choice(x, n_choose=n_choose)
                 y = random_choice(y, n_choose=n_choose)
                 self.permanence[x, y] += lr
+        self.normalize()
 
     def normalize(self):
         if not self.learn:
             return None
-        sparsity = self.output_sparsity.get_mean().item()
-        self.dropout = self.update_dropout(sparsity)
-        self.output_sparsity.reset()
         self.permanence.clamp_min_(0)
         presum = self.permanence.sum(dim=0, keepdim=True)
         presum += 1e-10
@@ -118,6 +120,7 @@ class ParameterBinary(nn.Parameter):
             threshold = 0.5 * pmax
         self.permanence[self.permanence <= threshold] = 0
         self.data[:] = self.permanence > 0
+        self.threshold.update(torch.Tensor([threshold]))
         return threshold
 
     def __repr__(self):
@@ -219,9 +222,17 @@ class WTAInterface(nn.Module):
         _update_weight(self.w_yh, x_pre=y, x_post=h)
 
     def epoch_finished(self):
-        kwta_thresholds = {name: param.normalize()
-                           for name, param in self.named_parameters()}
-        return kwta_thresholds
+        for param in self.parameters():
+            param.reset()
+
+    def kwta_thresholds(self):
+        thresholds = {}
+        for name, param in self.named_parameters():
+            thr = param.threshold.get_mean()
+            if thr is not None:
+                thr = thr.item()
+            thresholds[name] = thr
+        return thresholds
 
     def weight_sparsity(self):
         sparsity = {name: param.sparsity
@@ -256,6 +267,7 @@ class IterativeWTA(WTAInterface):
 
     def forward(self, x):
         x = torch.atleast_2d(x)
+        x = x.flatten(start_dim=1)
         y0 = x @ self.w_xy
         h0 = x @ self.w_xh
         h = torch.zeros_like(h0)
