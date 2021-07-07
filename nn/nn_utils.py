@@ -46,11 +46,11 @@ def l0_sparsity(tensor):
     return tensor.count_nonzero().item() / tensor.nelement()
 
 
-def compute_discriminative_factor(array: torch.Tensor, labels: torch.Tensor):
-    # array shape is (n_classes, n_features)
-    dist_nonzero = torch.pdist(array)
-    n = array.size(0)
-    dist = torch.zeros(n, n, device=array.device)
+def compute_discriminative_factor(tensor: torch.Tensor, labels: torch.Tensor):
+    # tensor shape is (n_samples, n_features)
+    dist_nonzero = torch.pdist(tensor)
+    n = tensor.size(0)
+    dist = torch.zeros(n, n, device=tensor.device)
     ii, jj = torch.triu_indices(row=n, col=n, offset=1)
     dist[ii, jj] = dist_nonzero
     ii, jj = torch.tril_indices(row=n, col=n, offset=-1)

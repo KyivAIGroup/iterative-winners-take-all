@@ -18,7 +18,7 @@ def generate_k_active(n, k):
 
 
 def compute_discriminative_factor(array, labels):
-    # array shape is (n_classes, n_features)
+    # array shape is (n_samples, n_features)
     dist = pdist(array)
     dist = squareform(dist)
     factor = []
