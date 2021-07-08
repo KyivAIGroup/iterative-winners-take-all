@@ -132,11 +132,13 @@ class ParameterBinary(nn.Parameter):
 class ParameterWithPermanence(ParameterBinary):
 
     def __new__(cls, permanence: torch.Tensor, sparsity: float, learn=True):
+        if torch.cuda.is_available():
+            permanence = permanence.cuda()
         n_active = math.ceil(permanence.nelement() * sparsity)
         presum = permanence.sum(dim=0, keepdim=True)
         permanence /= presum
         thr = permanence.view(-1).topk(n_active).values[-1]
-        data = (permanence > thr).int()
+        data = (permanence > thr).float()
 
         param = super().__new__(cls, data, learn=learn)
         param.permanence = permanence
@@ -152,12 +154,14 @@ class ParameterWithPermanence(ParameterBinary):
         x_post = torch.atleast_2d(x_post)
         for x, y in zip(x_pre, x_post):
             self.permanence.addr_(x, y, alpha=lr)
+        self.normalize()
 
     def normalize(self):
         if not self.learn:
             return None
         self.permanence.clamp_min_(0)
         presum = self.permanence.sum(dim=0, keepdim=True)
+        presum += 1e-10
         self.permanence /= presum
         return super().normalize()
         perm = self.permanence.view(-1)

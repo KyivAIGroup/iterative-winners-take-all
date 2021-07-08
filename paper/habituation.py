@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import trange
 from pathlib import Path
 
-from kwta import iWTA, update_weights
+from kwta import iWTA, update_weights, Permanence
 from utils import generate_k_active
 
 # Fix the random seed to reproduce the results
@@ -53,23 +53,24 @@ for repeat in trange(10):
     w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
     w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
 
-    _, y0 = iWTA(y0=w_xy @ x, h0=w_xh @ x, w_hy=w_hy, w_hh=w_hh)
+    # w_xy = Permanence(np.random.rand(N_y, N_x), sparsity=s_w_xy)
+    # w_xh = Permanence(np.random.rand(N_h, N_x), sparsity=s_w_xh)
+    w_hy = Permanence(np.random.rand(N_y, N_h), sparsity=s_w_hy)
+    # w_hh = Permanence(np.random.rand(N_h, N_h), sparsity=s_w_hh)
+
+    _, y0 = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
 
     for iter_id in range(N_ITERS):
-        h, y = iWTA(y0=w_xy @ x, h0=w_xh @ x, w_hy=w_hy, w_hh=w_hh)
+        h, y = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
         overlap = (y & y0).sum(axis=0)
         nonzero_count = y.sum(axis=0)
         for label in range(len(px)):
             mask = labels == label
             stats['overlap'][repeat, iter_id, label] = overlap[mask].mean()
             stats['nonzero_count'][repeat, iter_id, label] = nonzero_count[mask].mean()
-        update_weights(w_hy, x_pre=h, x_post=y, n_choose=10)
+        w_hy.update(x_pre=h, x_post=y, n_choose=None)
+        # update_weights(w_hy, x_pre=h, x_post=y, n_choose=10)
     print("sparsity w_hy: ", w_hy.mean())
-
-colormap = {
-    'overlap': 'blue',
-    'nonzero_count': 'cyan'
-}
 
 fig, ax = plt.subplots()
 
@@ -78,9 +79,9 @@ std = stats["nonzero_count"].std(axis=0)
 mean_overlap = stats["overlap"].mean(axis=0)
 
 for label, (m, s) in enumerate(zip(mean.T, std.T)):
-    ax.plot(range(N_ITERS), m, label=f"$x_{label}$")
-    ax.plot(range(N_ITERS), mean_overlap[:, label], lw=1, ls='--')
-    ax.fill_between(range(N_ITERS), m + s, m - s, alpha=0.3)
+    line = ax.plot(range(N_ITERS), m, label=f"$x_{label}$")[0]
+    ax.plot(range(N_ITERS), mean_overlap[:, label], lw=1, ls='--', color=line.get_color())
+    ax.fill_between(range(N_ITERS), m + s, m - s, alpha=0.2)
 ax.legend()
 ax.set_xlabel('Iteration')
 ax.set_ylabel("$||y||_0$")
