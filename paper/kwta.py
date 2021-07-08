@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import warnings
 
@@ -72,16 +71,19 @@ def update_weights(w, x_pre, x_post, n_choose=1):
             w[y, x] = 1
 
 
-class Permanence(np.ndarray):
+def normalize_presynaptic(mat):
+    presum = mat.sum(axis=1)[:, np.newaxis]
+    presum += 1e-10
+    mat /= presum
 
 
+class PermanenceFixedSparsity(np.ndarray):
 
-    def __new__(cls, permanence, sparsity: float):
-        presum = permanence.sum(axis=1)[:, np.newaxis]
-        permanence = permanence / presum
-        n_active = math.ceil(sparsity * permanence.size)
-        data = kWTA(permanence.reshape(-1), k=n_active).reshape(permanence.shape)
-        mat = np.array(data, dtype=np.int32, copy=False).view(cls)
+    def __new__(cls, data):
+        assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
+        mat = np.array(data, dtype=np.int32).view(cls)
+        permanence = data * np.random.random(data.shape)
+        normalize_presynaptic(permanence)
         mat.permanence = permanence
         return mat
 
@@ -92,7 +94,7 @@ class Permanence(np.ndarray):
     def n_active(self):
         return self.sum()
 
-    def update(self, x_pre, x_post, n_choose=None, lr=0.001):
+    def update(self, x_pre, x_post, n_choose=1, lr=0.001):
         for x, y in zip(x_pre.T, x_post.T):
             x = x.nonzero()[0]
             y = y.nonzero()[0]
@@ -107,8 +109,51 @@ class Permanence(np.ndarray):
         self.normalize()
 
     def normalize(self):
-        self.permanence.clip(min=0, out=self.permanence)
-        presum = self.permanence.sum(axis=1)[:, np.newaxis]
-        self.permanence /= presum
+        # self.permanence.clip(min=0, out=self.permanence)
+        normalize_presynaptic(self.permanence)
         data = kWTA(self.permanence.reshape(-1), k=self.n_active)
         self[:] = data.reshape(self.shape)
+
+
+class PermanenceWithDropout(PermanenceFixedSparsity):
+
+    def __new__(cls, data, excitatory: bool, sparsity_desired=(0.025, 0.1)):
+        mat = super().__new__(cls, data)
+        mat.excitatory = excitatory
+        mat.sparsity_desired = sparsity_desired
+        mat.dropout = np.random.random()
+        return mat
+
+    def update_dropout(self, output_sparsity: float, gamma=0.1):
+        dropout_inc = gamma * 0.95 + (1 - gamma) * self.dropout
+        dropout_dec = gamma * 0.05 + (1 - gamma) * self.dropout
+        dropout = self.dropout
+        s_min, s_max = self.sparsity_desired
+        if output_sparsity > s_max:
+            dropout = dropout_inc if self.excitatory else dropout_dec
+        elif output_sparsity < s_min:
+            dropout = dropout_dec if self.excitatory else dropout_inc
+        return dropout
+
+    def update(self, x_pre, x_post, n_choose=1, lr=0.001):
+        output_sparsity = np.count_nonzero(x_post) / x_post.size
+        self.dropout = self.update_dropout(output_sparsity)
+        super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
+
+    def normalize(self):
+        normalize_presynaptic(self.permanence)
+        perm = self.permanence.reshape(-1)
+        perm = perm[perm > 0]
+        pmax = perm.max()
+        perm = perm[perm != pmax]  # the max element should survive
+        n_active = len(perm)
+        if n_active > 0:
+            # find k-th smallest value
+            perm = np.sort(perm)
+            n_drop = max(1, int(self.dropout * n_active))
+            threshold = perm[-n_drop]
+        else:
+            # pick any value in (0, pmax) range exclusively
+            threshold = 0.5 * pmax
+        self.permanence[self.permanence <= threshold] = 0
+        self[:] = self.permanence > 0

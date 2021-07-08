@@ -32,14 +32,15 @@ class ParameterBinary(nn.Parameter):
         param = super().__new__(cls, data, requires_grad=False)
         assert data.unique().tolist() == [0, 1]
         param.learn = learn
-        param.permanence = data.clone().float() if learn else None
+        permanence = data.clone().float() * torch.rand_like(data)
+        param.permanence = permanence if learn else None
         param.dropout = dropout if learn else None
         param.excitatory = None
         param.threshold = MeanOnline()
         param.sp_rmean = None  # output sparsity running mean
         return param
 
-    def update_dropout(self, sparsity: float, gamma=0.5, gamma_slow=0.1):
+    def update_dropout2(self, sparsity: float, gamma=0.5, gamma_slow=0.1):
         if self.sp_rmean is None:
             self.sp_rmean = sparsity
         else:
@@ -67,7 +68,7 @@ class ParameterBinary(nn.Parameter):
     def reset(self):
         self.threshold.reset()
 
-    def update_dropout2(self, output_sparsity: float, gamma=0.1):
+    def update_dropout(self, output_sparsity: float, gamma=0.1):
         dropout_inc = gamma * 0.95 + (1 - gamma) * self.dropout
         dropout_dec = gamma * 0.05 + (1 - gamma) * self.dropout
         dropout = self.dropout
@@ -84,8 +85,6 @@ class ParameterBinary(nn.Parameter):
             return
         output_sparsity = l0_sparsity(x_post)
         self.dropout = self.update_dropout(output_sparsity)
-        if n_choose is not None:
-            n_choose = int(n_choose * (1 - output_sparsity))
         for x, y in zip(x_pre, x_post):
             x = x.nonzero(as_tuple=True)[0]
             y = y.nonzero(as_tuple=True)[0]

@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import trange
 from pathlib import Path
 
-from kwta import iWTA, update_weights, Permanence
+from kwta import iWTA, update_weights, PermanenceFixedSparsity, PermanenceWithDropout
 from utils import generate_k_active
 
 # Fix the random seed to reproduce the results
@@ -12,7 +12,7 @@ np.random.seed(0)
 
 N_x = N_h = N_y = 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh = 0.2, 0.1, 0.1, 0.1, 0.1
-N_REPEATS, N_ITERS = 10, 5
+N_REPEATS, N_ITERS = 10, 50
 
 
 def sample_from_distribution(px, n_neurons, n_samples, k):
@@ -45,7 +45,7 @@ stats = {
     for mode in ('overlap', 'nonzero_count')
 }
 
-for repeat in trange(10):
+for repeat in trange(N_REPEATS):
     x, labels = sample_from_distribution(px=px, n_neurons=N_x, n_samples=30, k=10)
 
     w_xy = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
@@ -53,10 +53,7 @@ for repeat in trange(10):
     w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
     w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
 
-    # w_xy = Permanence(np.random.rand(N_y, N_x), sparsity=s_w_xy)
-    # w_xh = Permanence(np.random.rand(N_h, N_x), sparsity=s_w_xh)
-    w_hy = Permanence(np.random.rand(N_y, N_h), sparsity=s_w_hy)
-    # w_hh = Permanence(np.random.rand(N_h, N_h), sparsity=s_w_hh)
+    w_hy = PermanenceWithDropout(w_hy, excitatory=False)
 
     _, y0 = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
 
@@ -68,7 +65,7 @@ for repeat in trange(10):
             mask = labels == label
             stats['overlap'][repeat, iter_id, label] = overlap[mask].mean()
             stats['nonzero_count'][repeat, iter_id, label] = nonzero_count[mask].mean()
-        w_hy.update(x_pre=h, x_post=y, n_choose=None)
+        w_hy.update(x_pre=h, x_post=y, n_choose=100)
         # update_weights(w_hy, x_pre=h, x_post=y, n_choose=10)
     print("sparsity w_hy: ", w_hy.mean())
 
