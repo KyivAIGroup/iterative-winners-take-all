@@ -4,7 +4,7 @@ import numpy as np
 from tqdm import trange
 from pathlib import Path
 
-from kwta import iWTA, update_weights, PermanenceFixedSparsity, PermanenceWithDropout
+from kwta import iWTA, update_weights, PermanenceFixedSparsity, PermanenceVaryingSparsity, PermanenceVogels, iWTA_history
 from utils import generate_k_active
 
 # Fix the random seed to reproduce the results
@@ -12,7 +12,8 @@ np.random.seed(0)
 
 N_x = N_h = N_y = 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh = 0.2, 0.1, 0.1, 0.1, 0.1
-N_REPEATS, N_ITERS = 10, 50
+N_REPEATS, N_ITERS = 10, 5
+N_CHOOSE = 100
 
 
 def sample_from_distribution(px, n_neurons, n_samples, k):
@@ -40,49 +41,52 @@ def sample_from_distribution(px, n_neurons, n_samples, k):
 
 px = [0.1, 0.1, 0.8]
 
-stats = {
-    mode: np.zeros((N_REPEATS, N_ITERS, len(px)), dtype=np.int32)
-    for mode in ('overlap', 'nonzero_count')
-}
+for perm_cls in (None, PermanenceFixedSparsity, PermanenceVogels, PermanenceVaryingSparsity):
+    y_sparsity = np.zeros((N_REPEATS, N_ITERS, len(px)), dtype=np.int32)
 
-for repeat in trange(N_REPEATS):
-    x, labels = sample_from_distribution(px=px, n_neurons=N_x, n_samples=30, k=10)
+    for repeat in trange(N_REPEATS):
+        x, labels = sample_from_distribution(px=px, n_neurons=N_x, n_samples=30, k=10)
 
-    w_xy = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
-    w_xh = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
-    w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
-    w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
+        w_xy = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
+        w_xh = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
+        w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
+        w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
 
-    w_hy = PermanenceWithDropout(w_hy, excitatory=False)
+        if perm_cls is not None:
+            w_hy = perm_cls(w_hy, excitatory=False)
 
-    _, y0 = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
+        for iter_id in range(N_ITERS):
+            if perm_cls is PermanenceVogels:
+                z_h, z_y = iWTA_history(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
+                w_hy.update(x_pre=z_h, x_post=z_y, n_choose=N_CHOOSE)
+                h = np.logical_or(z_h)
+                y = np.logical_or(z_y)
+            elif perm_cls in (PermanenceFixedSparsity, PermanenceVaryingSparsity):
+                h, y = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
+                w_hy.update(x_pre=h, x_post=y, n_choose=N_CHOOSE)
+            else:
+                # classical Willshaw
+                h, y = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
+                update_weights(w_hy, x_pre=h, x_post=y, n_choose=N_CHOOSE)
+            y_sparsity_i = np.count_nonzero(y, axis=0).astype(float) / N_y
+            for label in range(len(px)):
+                mask = labels == label
+                y_sparsity[repeat, iter_id, label] = y_sparsity_i[mask].mean()
 
-    for iter_id in range(N_ITERS):
-        h, y = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
-        overlap = (y & y0).sum(axis=0)
-        nonzero_count = y.sum(axis=0)
-        for label in range(len(px)):
-            mask = labels == label
-            stats['overlap'][repeat, iter_id, label] = overlap[mask].mean()
-            stats['nonzero_count'][repeat, iter_id, label] = nonzero_count[mask].mean()
-        w_hy.update(x_pre=h, x_post=y, n_choose=100)
-        # update_weights(w_hy, x_pre=h, x_post=y, n_choose=10)
-    print("sparsity w_hy: ", w_hy.mean())
+    fig, ax = plt.subplots()
 
-fig, ax = plt.subplots()
+    mean = y_sparsity.mean(axis=0)
+    std = y_sparsity.std(axis=0)
 
-mean = stats["nonzero_count"].mean(axis=0)
-std = stats["nonzero_count"].std(axis=0)
-mean_overlap = stats["overlap"].mean(axis=0)
-
-for label, (m, s) in enumerate(zip(mean.T, std.T)):
-    line = ax.plot(range(N_ITERS), m, label=f"$x_{label}$")[0]
-    ax.plot(range(N_ITERS), mean_overlap[:, label], lw=1, ls='--', color=line.get_color())
-    ax.fill_between(range(N_ITERS), m + s, m - s, alpha=0.2)
-ax.legend()
-ax.set_xlabel('Iteration')
-ax.set_ylabel("$||y||_0$")
-results_dir = Path("results")
-results_dir.mkdir(exist_ok=True)
-plt.savefig(results_dir / "habituation.jpg")
-plt.show()
+    for label, (m, s) in enumerate(zip(mean.T, std.T)):
+        ax.plot(range(N_ITERS), m, label=f"$x_{label}$")
+        ax.fill_between(range(N_ITERS), m + s, m - s, alpha=0.2)
+    ax.legend()
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel("$s_y$")
+    experiment_name = "willshaw" if perm_cls is None else perm_cls.__name__
+    ax.set_title(experiment_name)
+    results_dir = Path("results")
+    results_dir.mkdir(exist_ok=True)
+    plt.savefig(results_dir / f"habituation_{experiment_name}.jpg")
+    plt.show()

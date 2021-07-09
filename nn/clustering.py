@@ -15,7 +15,7 @@ from mighty.monitor.accuracy import AccuracyEmbedding, calc_accuracy
 set_seed(0)
 
 N_x = N_y = N_h = 200
-s_x = 0.5
+s_x = 0.2
 s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
 
 
@@ -47,7 +47,7 @@ assert centroids.any(axis=0).all(), "Pick another seed"
 
 xs = np.repeat(centroids, repeats=N_SAMPLES_PER_CLASS, axis=1).T
 labels = np.repeat(np.arange(N_CLASSES), N_SAMPLES_PER_CLASS)
-white_noise = np.random.binomial(1, 0.5, size=xs.shape)
+white_noise = np.random.binomial(1, 0.5 * s_x, size=xs.shape)
 xs ^= white_noise
 shuffle_idx = np.random.permutation(len(xs))
 xs = xs[shuffle_idx]

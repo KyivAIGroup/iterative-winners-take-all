@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import warnings
 
@@ -27,8 +29,6 @@ def at_least_one_neuron_active(y0, h0, y, h, w_hy):
 
 
 def iWTA(x, w_xh, w_xy, w_hy, w_yy=None, w_hh=None, w_yh=None):
-    # y0 is a (Ny, trials) tensor
-    # h0 is a (Nh, trials) tensor
     h0 = w_xh @ x
     y0 = w_xy @ x
     h = np.zeros_like(h0, dtype=np.int32)
@@ -55,6 +55,38 @@ def iWTA(x, w_xh, w_xy, w_hy, w_yy=None, w_hh=None, w_yh=None):
     return h, y
 
 
+def iWTA_history(x, w_xh, w_xy, w_hy, w_yy=None, w_hh=None, w_yh=None):
+    h0 = w_xh @ x
+    y0 = w_xy @ x
+    h = np.zeros_like(h0, dtype=np.int32)
+    y = np.zeros_like(y0, dtype=np.int32)
+    t_start = max(h0.max(), y0.max())
+    history = []
+    for threshold in range(t_start, 0, -1):
+        z_h = h0
+        if w_hh is not None:
+            z_h = z_h - w_hh @ h
+        if w_yh is not None:
+            z_h = z_h + w_yh @ y
+        z_h = z_h >= threshold
+
+        z_y = y0 - w_hy @ h
+        if w_yy is not None:
+            z_y += w_yy @ y
+        z_y = z_y >= threshold
+
+        h |= z_h
+        y |= z_y
+        history.append((z_h, z_y))
+
+    z_h, z_y = zip(*history)
+    z_h = list(z_h)
+    z_y = list(z_y)
+    z_h[-1], z_y[-1] = at_least_one_neuron_active(y0, h0, z_y[-1], z_h[-1], w_hy)
+
+    return z_h, z_y
+
+
 def update_weights(w, x_pre, x_post, n_choose=1):
     # x_pre and x_post are (N, trials) tensors
     assert x_pre.shape[1] == x_post.shape[1]
@@ -79,7 +111,7 @@ def normalize_presynaptic(mat):
 
 class PermanenceFixedSparsity(np.ndarray):
 
-    def __new__(cls, data):
+    def __new__(cls, data, **kwargs):
         assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
         mat = np.array(data, dtype=np.int32).view(cls)
         permanence = data * np.random.random(data.shape)
@@ -94,7 +126,15 @@ class PermanenceFixedSparsity(np.ndarray):
     def n_active(self):
         return self.sum()
 
+    @staticmethod
+    def kWTA_threshold(vec, k):
+        vec_nonzero = np.sort(vec[vec > 0])
+        k = min(k, len(vec_nonzero))
+        thr = vec_nonzero[-k]
+        return thr
+
     def update(self, x_pre, x_post, n_choose=1, lr=0.001):
+        assert x_pre.shape[1] == x_post.shape[1], "Batch size mismatch"
         for x, y in zip(x_pre.T, x_post.T):
             x = x.nonzero()[0]
             y = y.nonzero()[0]
@@ -115,45 +155,56 @@ class PermanenceFixedSparsity(np.ndarray):
         self[:] = data.reshape(self.shape)
 
 
-class PermanenceWithDropout(PermanenceFixedSparsity):
+class PermanenceVogels(PermanenceFixedSparsity):
+    N_COINCIDENT = 1
 
-    def __new__(cls, data, excitatory: bool, sparsity_desired=(0.025, 0.1)):
+    def update(self, x_pre, x_post, n_choose=1, lr=0.001):
+        assert len(x_pre) == len(x_post)
+        window_size = (self.N_COINCIDENT + 1)
+        n_steps = len(x_pre)
+        lr_potentiation = lr / (n_steps * window_size)
+        lr_depression = -lr / (n_steps * (n_steps - window_size))
+        for i, (x, y) in enumerate(zip(x_pre, x_post)):
+            for j in range(max(0, i - self.N_COINCIDENT), i + 1):
+                # Potentiation
+                x_recent = x_pre[j]
+                alpha = lr_potentiation * (1 - (i - j) / window_size)
+                super().update(x_pre=x_recent, x_post=y, lr=alpha)
+            for j in range(0, i - self.N_COINCIDENT - 1):
+                # Depression
+                x_past = x_pre[j]
+                super().update(x_pre=x_past, x_post=y, lr=lr_depression)
+
+
+class PermanenceVaryingSparsity(PermanenceFixedSparsity):
+
+    def __new__(cls, data, excitatory: bool,
+                output_sparsity_desired=(0.025, 0.1)):
         mat = super().__new__(cls, data)
         mat.excitatory = excitatory
-        mat.sparsity_desired = sparsity_desired
-        mat.dropout = np.random.random()
+        mat.output_sparsity_desired = output_sparsity_desired
+        mat.weight_sparsity = np.random.random()
         return mat
 
-    def update_dropout(self, output_sparsity: float, gamma=0.1):
-        dropout_inc = gamma * 0.95 + (1 - gamma) * self.dropout
-        dropout_dec = gamma * 0.05 + (1 - gamma) * self.dropout
-        dropout = self.dropout
-        s_min, s_max = self.sparsity_desired
+    def update_weight_sparsity(self, output_sparsity: float, gamma=0.1):
+        sparsity_inc = gamma * 0.95 + (1 - gamma) * self.weight_sparsity
+        sparsity_dec = gamma * 0.05 + (1 - gamma) * self.weight_sparsity
+        sparsity = self.weight_sparsity
+        s_min, s_max = self.output_sparsity_desired
         if output_sparsity > s_max:
-            dropout = dropout_inc if self.excitatory else dropout_dec
+            sparsity = sparsity_dec if self.excitatory else sparsity_inc
         elif output_sparsity < s_min:
-            dropout = dropout_dec if self.excitatory else dropout_inc
-        return dropout
+            sparsity = sparsity_inc if self.excitatory else sparsity_dec
+        return sparsity
 
     def update(self, x_pre, x_post, n_choose=1, lr=0.001):
         output_sparsity = np.count_nonzero(x_post) / x_post.size
-        self.dropout = self.update_dropout(output_sparsity)
+        self.weight_sparsity = self.update_weight_sparsity(output_sparsity)
         super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
 
     def normalize(self):
         normalize_presynaptic(self.permanence)
-        perm = self.permanence.reshape(-1)
-        perm = perm[perm > 0]
-        pmax = perm.max()
-        perm = perm[perm != pmax]  # the max element should survive
-        n_active = len(perm)
-        if n_active > 0:
-            # find k-th smallest value
-            perm = np.sort(perm)
-            n_drop = max(1, int(self.dropout * n_active))
-            threshold = perm[-n_drop]
-        else:
-            # pick any value in (0, pmax) range exclusively
-            threshold = 0.5 * pmax
-        self.permanence[self.permanence <= threshold] = 0
+        k = math.ceil(self.weight_sparsity * self.size)
+        threshold = self.kWTA_threshold(self.permanence.reshape(-1), k=k)
+        self.permanence[self.permanence < threshold] = 0
         self[:] = self.permanence > 0

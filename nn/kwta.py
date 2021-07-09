@@ -98,26 +98,21 @@ class ParameterBinary(nn.Parameter):
         self.normalize()
 
     def normalize(self):
+        def kWTA_threshold(vec, k):
+            vec_nonzero = vec[vec > 0]
+            k = min(k, len(vec_nonzero))
+            thr = vec_nonzero.topk(k).values[-1].item()
+            return thr
+
         if not self.learn:
             return None
         self.permanence.clamp_min_(0)
         presum = self.permanence.sum(dim=0, keepdim=True)
         presum += 1e-10
         self.permanence /= presum
-        # self.permanence /= self.permanence.max()  # only to avoid overflow
-        perm = self.permanence.view(-1)
-        perm = perm[perm.nonzero(as_tuple=True)[0]]
-        pmax = perm.max()
-        perm = perm[perm != pmax]  # the max element should survive
-        n_active = len(perm)
-        if n_active > 0:
-            n_drop = max(1, int(self.dropout * n_active))
-            # find k-th smallest value
-            threshold = perm.kthvalue(n_drop).values.item()
-        else:
-            # pick any value in (0, pmax) range exclusively
-            threshold = 0.5 * pmax
-        self.permanence[self.permanence <= threshold] = 0
+        k = math.ceil((1 - self.dropout) * self.permanence.nelement())
+        threshold = kWTA_threshold(self.permanence.view(-1), k=k)
+        self.permanence[self.permanence < threshold] = 0
         self.data[:] = self.permanence > 0
         self.threshold.update(torch.Tensor([threshold]))
         return threshold
