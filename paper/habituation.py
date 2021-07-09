@@ -1,10 +1,12 @@
 import math
 import matplotlib.pyplot as plt
 import numpy as np
-from tqdm import trange
 from pathlib import Path
+from tqdm import trange
 
-from kwta import iWTA, update_weights, PermanenceFixedSparsity, PermanenceVaryingSparsity, PermanenceVogels, iWTA_history
+from kwta import iWTA, update_weights, iWTA_history
+from permanence import PermanenceVogels, PermanenceFixedSparsity, \
+    PermanenceVaryingSparsity
 from utils import generate_k_active
 
 # Fix the random seed to reproduce the results
@@ -13,7 +15,7 @@ np.random.seed(0)
 N_x = N_h = N_y = 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh = 0.2, 0.1, 0.1, 0.1, 0.1
 N_REPEATS, N_ITERS = 10, 5
-N_CHOOSE = 100
+N_CHOOSE = 10
 
 
 def sample_from_distribution(px, n_neurons, n_samples, k):
@@ -42,7 +44,7 @@ def sample_from_distribution(px, n_neurons, n_samples, k):
 px = [0.1, 0.1, 0.8]
 
 for perm_cls in (None, PermanenceFixedSparsity, PermanenceVogels, PermanenceVaryingSparsity):
-    y_sparsity = np.zeros((N_REPEATS, N_ITERS, len(px)), dtype=np.int32)
+    y_sparsity = np.zeros((N_REPEATS, N_ITERS, len(px)), dtype=np.float32)
 
     for repeat in trange(N_REPEATS):
         x, labels = sample_from_distribution(px=px, n_neurons=N_x, n_samples=30, k=10)
@@ -59,8 +61,10 @@ for perm_cls in (None, PermanenceFixedSparsity, PermanenceVogels, PermanenceVary
             if perm_cls is PermanenceVogels:
                 z_h, z_y = iWTA_history(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
                 w_hy.update(x_pre=z_h, x_post=z_y, n_choose=N_CHOOSE)
-                h = np.logical_or(z_h)
-                y = np.logical_or(z_y)
+                h, y = z_h[0], z_y[0]
+                for i in range(1, len(z_h)):
+                    h |= z_h[i]
+                    y |= z_y[i]
             elif perm_cls in (PermanenceFixedSparsity, PermanenceVaryingSparsity):
                 h, y = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
                 w_hy.update(x_pre=h, x_post=y, n_choose=N_CHOOSE)
