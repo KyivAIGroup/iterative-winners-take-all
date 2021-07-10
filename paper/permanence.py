@@ -23,10 +23,6 @@ class PermanenceFixedSparsity(np.ndarray):
     def __array_finalize__(self, obj):
         self.permanence = getattr(obj, 'permanence', None)
 
-    @property
-    def n_active(self):
-        return self.sum()
-
     @staticmethod
     def kWTA_threshold(vec, k):
         vec_nonzero = np.sort(vec[vec > 0])
@@ -54,7 +50,7 @@ class PermanenceFixedSparsity(np.ndarray):
     def normalize(self):
         # self.permanence.clip(min=0, out=self.permanence)
         normalize_presynaptic(self.permanence)
-        data = kWTA(self.permanence.reshape(-1), k=self.n_active)
+        data = kWTA(self.permanence.reshape(-1), k=self.sum())
         self[:] = data.reshape(self.shape)
 
 
@@ -77,6 +73,10 @@ class PermanenceVogels(PermanenceFixedSparsity):
                 # Depression
                 x_past = x_pre[j]
                 super().update(x_pre=x_past, x_post=y, lr=lr_depression)
+
+    def normalize(self):
+        self.permanence.clip(min=0, out=self.permanence)
+        super().normalize()
 
 
 class PermanenceVaryingSparsity(PermanenceFixedSparsity):

@@ -32,7 +32,7 @@ class TrainerIWTAMnist(TrainerIWTA):
     def _epoch_finished(self, loss):
         self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
-        self.monitor.update_weight_dropout(self.model.weight_dropout())
+        self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
         self.monitor.update_sparsity(self.online['sparsity'].get_mean(),
                                      mode='y')
         self.monitor.update_sparsity(self.online['sparsity-h'].get_mean(),
@@ -50,12 +50,12 @@ class TrainerIWTAMnist(TrainerIWTA):
         TrainerEmbedding._on_forward_pass_batch(self, batch, y, train)
 
 
-w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
-w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
-w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
-w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
-w_yy = ParameterBinary(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
-w_yh = ParameterBinary(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
+w_xy = PermanenceVaryingSparsity(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
+w_xh = PermanenceVaryingSparsity(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
+w_hy = PermanenceVaryingSparsity(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
+w_hh = PermanenceVaryingSparsity(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
+w_yy = PermanenceVaryingSparsity(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
+w_yh = PermanenceVaryingSparsity(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
 
 
 class BinarizeMnist(nn.Module):

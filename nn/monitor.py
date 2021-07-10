@@ -79,11 +79,14 @@ class MonitorIWTA(MonitorEmbedding):
             legend=list(names),
         ))
 
-    def update_weight_dropout(self, dropout: dict):
-        names, dropout = zip(*dropout.items())
-        self.viz.line_update(y=dropout, opts=dict(
-            xlabel='Epoch',
-            title="Weight dropout",
+    def update_weight_nonzero_keep(self, nonzero_keep: dict):
+        if len(nonzero_keep) == 0:
+            return
+        names, nonzero_keep = zip(*nonzero_keep.items())
+        self.viz.line_update(y=nonzero_keep, opts=dict(
+            xlabel="Epoch",
+            ylabel="1.0 - dropout",
+            title="Weight nonzero keep",
             legend=list(names),
         ))
 
@@ -100,6 +103,8 @@ class MonitorIWTA(MonitorEmbedding):
             ))
 
     def update_kwta_thresholds(self, kwta_thresholds: dict):
+        if len(kwta_thresholds) == 0:
+            return
         labels, thresholds = zip(*kwta_thresholds.items())
         self.viz.line_update(thresholds, opts=dict(
             xlabel="Epoch",

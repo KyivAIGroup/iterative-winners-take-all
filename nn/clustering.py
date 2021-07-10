@@ -58,13 +58,13 @@ if torch.cuda.is_available():
 
 print_info_x()
 
-w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
-w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
-w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
-w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
-w_yy = ParameterBinary(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
+w_xy = PermanenceVaryingSparsity(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
+w_xh = PermanenceVaryingSparsity(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
+w_hy = PermanenceVaryingSparsity(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
+w_hh = PermanenceVaryingSparsity(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
+w_yy = PermanenceVaryingSparsity(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
 # w_yy = ParameterWithPermanence(torch.rand(N_y, N_y), sparsity=s_w_yy, learn=True)
-w_yh = ParameterBinary(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
+w_yh = PermanenceVaryingSparsity(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
 # w_yh = None
 
 data_loader = DataLoader(NoisyCentroids, transform=None,

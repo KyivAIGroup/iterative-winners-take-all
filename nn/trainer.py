@@ -104,12 +104,12 @@ class TrainerIWTA(TrainerEmbedding):
 
     def training_started(self):
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
-        self.monitor.update_weight_dropout(self.model.weight_dropout())
+        self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
 
     def _epoch_finished(self, loss):
         self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
-        self.monitor.update_weight_dropout(self.model.weight_dropout())
+        self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
         self._update_cached()
         self.model.epoch_finished()
         TrainerGrad._epoch_finished(self, loss)
