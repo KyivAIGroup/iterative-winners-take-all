@@ -37,7 +37,7 @@ class PermanenceFixedSparsity(np.ndarray):
             y = y.nonzero()[0]
             if len(x) == 0 or len(y) == 0:
                 continue
-            if n_choose is None:
+            if n_choose is None or n_choose >= len(x) * len(y):
                 # full outer product
                 self.permanence[np.expand_dims(y, axis=1), x] += lr
             else:

@@ -55,7 +55,7 @@ class PermanenceFixedSparsity(nn.Parameter):
             y = y.nonzero(as_tuple=True)[0]
             if len(x) == 0 or len(y) == 0:
                 return
-            if n_choose is None:
+            if n_choose is None or n_choose >= len(x) * len(y):
                 # full outer product
                 self.permanence[x.unsqueeze(1), y] += lr
             else:
@@ -406,7 +406,7 @@ def update_weights(w, x_pre, x_post, n_choose=1):
         y = y.nonzero(as_tuple=True)[0]
         if len(x) == 0 or len(y) == 0:
             return
-        if n_choose is None:
+        if n_choose is None or n_choose >= len(x) * len(y):
             # full outer product
             w[x.unsqueeze(1), y] = 1
         else:

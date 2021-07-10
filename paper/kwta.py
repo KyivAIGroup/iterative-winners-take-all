@@ -93,7 +93,7 @@ def update_weights(w, x_pre, x_post, n_choose=1):
         y = y.nonzero()[0]
         if len(x) == 0 or len(y) == 0:
             continue
-        if n_choose is None:
+        if n_choose is None or n_choose >= len(x) * len(y):
             # full outer product
             w[np.expand_dims(y, axis=1), x] = 1
         else:

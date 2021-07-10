@@ -4,6 +4,7 @@ Learning the weights either for (x1, y1) or (x2, y2) should decorrelate y1 and y
 """
 
 import numpy as np
+import math
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset
@@ -19,12 +20,37 @@ from nn.trainer import TrainerIWTA
 set_seed(0)
 
 N_x = N_y = N_h = 200
-s_x = 0.1
+s_x = 0.2
 s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
 
-N_UNIQUE = 10
-N_REPEATS = 100
-N_REPEATS_PEAK = 40
+N_SAMPLES_TOTAL = 30
+
+
+def generate_k_active(n, k):
+    x = np.zeros(n, dtype=np.int32)
+    active = np.random.choice(n, size=k, replace=False)
+    x[active] = 1
+    return x
+
+
+def sample_from_distribution(px, n_neurons, n_samples, k):
+    px = np.array(px)
+    assert np.isclose(px.sum(), 1), "Probabilities must sum up to 1"
+    x = np.array([generate_k_active(n_neurons, k) for pxi in px])
+    labels = []
+    for i, pxi in enumerate(px):
+        repeats = math.ceil(pxi * n_samples)
+        labels_repeated = np.full(repeats, fill_value=i)
+        labels.append(labels_repeated)
+    labels = np.hstack(labels)
+    np.random.shuffle(labels)
+    x = x[labels]
+    x = torch.from_numpy(x).float()
+    labels = torch.from_numpy(labels)
+    if torch.cuda.is_available():
+        x = x.cuda()
+        labels = labels.cuda()
+    return x, labels
 
 
 class TrainerIWTAHabituation(TrainerIWTA):
@@ -34,46 +60,42 @@ class TrainerIWTAHabituation(TrainerIWTA):
         labels = torch.cat(self.cached_labels)
         labels_unique = labels.unique().tolist()
         convergence = {}
-        sparsity_per_label = {"p(x)": p_x}
+        sparsity = {}
+        sparsity_per_label = {"p(x)": px}
         for name, output in self.cached_output.items():
             output = torch.cat(output).int()
-            sparsity = torch.zeros(len(labels_unique))
+            sparsity[name] = l0_sparsity(output)
             if name in self.cached_output_prev:
                 xor = (self.cached_output_prev[name] ^ output).sum(dim=1)
                 convergence[name] = xor.float().mean().item() / output.size(1)
             self.cached_output_prev[name] = output
-            for label in labels_unique:
-                mask = labels == label
-                sparsity[label] = l0_sparsity(output[mask])
-            sparsity /= sparsity.sum()
-            sparsity_per_label[f"||{name}||_0"] = sparsity
+            sparsity_per_label[f"s_{name}"] = [l0_sparsity(output[labels == l])
+                                               for l in labels_unique]
         self.monitor.update_output_convergence(convergence)
         self.monitor.update_sparsity_per_label(sparsity_per_label)
+        self.monitor.update_sparsity(sparsity)
         self.cached_output.clear()
         self.cached_labels.clear()
 
 
 class RandomWithRepetitions(TensorDataset):
     def __init__(self, *args, **kwargs):
-        super().__init__(xs, labels)
+        super().__init__(x, labels)
 
 
-x_unique = sample_bernoulli((N_UNIQUE, N_x), p=s_x)
-labels = np.random.choice(N_UNIQUE - 1, size=N_REPEATS - N_REPEATS_PEAK)
-labels = np.r_[labels, np.full(N_REPEATS_PEAK, fill_value=N_UNIQUE - 1)]
-np.random.shuffle(labels)
-labels = torch.from_numpy(labels).to(device=x_unique.device)
-xs = x_unique[labels]
+px = [0.2, 0.2, 0.6]
+x, labels = sample_from_distribution(px=px, n_neurons=N_x, n_samples=N_SAMPLES_TOTAL, k=int(s_x * N_x))
 
-_, label_counts = labels.unique(return_counts=True)
-p_x = label_counts.cpu() / len(labels)
+Permanence = PermanenceFixedSparsity
 
-w_xy = PermanenceVaryingSparsity(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
-w_xh = PermanenceVaryingSparsity(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
-w_hy = PermanenceVaryingSparsity(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
-w_hh = PermanenceVaryingSparsity(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
-w_yy = PermanenceVaryingSparsity(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
-w_yh = PermanenceVaryingSparsity(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
+w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=True)
+w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=True)
+w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
+w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
+w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
+w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
+
+# w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
 # w_yy = None
 # w_yh = None
 

@@ -11,6 +11,7 @@ from mighty.utils.stub import OptimizerStub
 from nn.kwta import WTAInterface, IterativeWTASoft
 from nn.monitor import MonitorIWTA
 from nn.nn_utils import compute_clustering_coefficient, l0_sparsity
+from mighty.utils.var_online import MeanOnlineLabels
 
 
 class TrainerIWTA(TrainerEmbedding):
@@ -102,9 +103,17 @@ class TrainerIWTA(TrainerEmbedding):
             print(f"{sparsity=}")
             print(f"{clustering=}")
 
+    def _plot_x_heatmap(self):
+        centroids = MeanOnlineLabels()
+        for x, labels in self.data_loader.eval():
+            centroids.update(x, labels)
+        mean = centroids.get_mean()
+        self.monitor.clusters_heatmap(mean, title="X mean activations")
+
     def training_started(self):
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
+        # self._plot_x_heatmap()
 
     def _epoch_finished(self, loss):
         self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())
