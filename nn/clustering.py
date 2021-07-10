@@ -6,17 +6,19 @@ from torch.utils.data import TensorDataset
 from mighty.loss import ContrastiveLossSampler
 from mighty.utils.common import set_seed
 from mighty.utils.data import DataLoader
-from nn.kwta import *
-from nn.trainer import TrainerIWTA
-from nn.nn_utils import NoShuffleLoader, sample_bernoulli, compute_clustering_coefficient
 from mighty.utils.domain import MonitorLevel
-from mighty.monitor.accuracy import AccuracyEmbedding, calc_accuracy
+from nn.kwta import *
+from nn.nn_utils import NoShuffleLoader, sample_bernoulli
+from nn.trainer import TrainerIWTA
 
 set_seed(0)
 
 N_x = N_y = N_h = 200
 s_x = 0.2
 s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
+# s_w_hh = s_w_yy = 0.01
+# s_w_hy = s_w_yh = 0.1
+# s_w_xh = s_w_xy = 0.01
 
 
 N_CLASSES = 10
@@ -33,15 +35,6 @@ class NoisyCentroids(TensorDataset):
         super().__init__(x, labels)
 
 
-def print_info_x():
-    acc = AccuracyEmbedding(cache=True)
-    acc.partial_fit(x, labels)
-    labels_pred = acc.predict_cached()
-    acc.reset()
-    print(f"{calc_accuracy(labels_pred, labels.cpu())=}")
-    print(f"{compute_clustering_coefficient(x, labels)=}")
-
-
 centroids = np.random.binomial(1, s_x, size=(N_CLASSES, N_x))
 assert centroids.any(axis=1).all(), "Pick another seed"
 labels = np.repeat(np.arange(N_CLASSES), N_SAMPLES_PER_CLASS)
@@ -56,8 +49,6 @@ if torch.cuda.is_available():
     x = x.cuda()
     labels = labels.cuda()
 
-print_info_x()
-
 Permanence = PermanenceVaryingSparsity
 
 w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
@@ -66,16 +57,19 @@ w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
 w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
 w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
 w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
+# w_hh = None
+# w_yy = None
+# w_yh = None
 
 data_loader = DataLoader(NoisyCentroids, transform=None,
                          loader_cls=NoShuffleLoader)
 criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0))
 
-iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
-# iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
+# iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
+iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
 print(iwta)
 
 trainer = TrainerIWTAClustering(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
 trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)
-trainer.train(n_epochs=50)
+trainer.train(n_epochs=20)

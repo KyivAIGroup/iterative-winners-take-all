@@ -10,7 +10,7 @@ from mighty.utils.data import DataLoader
 from mighty.utils.stub import OptimizerStub
 from nn.kwta import WTAInterface, IterativeWTASoft
 from nn.monitor import MonitorIWTA
-from nn.nn_utils import compute_clustering_coefficient, l0_sparsity
+from nn.nn_utils import compute_loss, l0_sparsity
 from mighty.utils.var_online import MeanOnlineLabels
 
 
@@ -36,6 +36,7 @@ class TrainerIWTA(TrainerEmbedding):
         self.cached_labels = []
         self.cached_output = defaultdict(list)
         self.cached_output_prev = {}
+        self.loss_x = None
 
     def mi_save_activations_y(self, module, tin, tout):
         """
@@ -75,45 +76,49 @@ class TrainerIWTA(TrainerEmbedding):
 
     def _update_cached(self):
         labels = torch.cat(self.cached_labels)
-        clustering = {}
         convergence = {}
         sparsity = {}
         for name, output in self.cached_output.items():
             output = torch.cat(output)
-            if name == 'y':
-                mean = [output[labels == label].mean(dim=0)
-                        for label in labels.unique()]
-                mean = torch.stack(mean)
-                self.monitor.clusters_heatmap(mean)
+            mean = [output[labels == label].mean(dim=0)
+                    for label in labels.unique()]
+            mean = torch.stack(mean)
+            self.monitor.clusters_heatmap(mean, title=f"Embeddings '{name}'")
             # self.monitor.plot_assemblies(output, labels, name=name)
-            clustering[name] = compute_clustering_coefficient(output, labels)
+            loss = compute_loss(output, labels)
+            self.monitor.update_loss(loss, mode=f'pairwise {name}')
             sparsity[name] = l0_sparsity(output)
             output = output.int()
             if name in self.cached_output_prev:
                 xor = (self.cached_output_prev[name] ^ output).sum(dim=1)
                 convergence[name] = xor.float().mean().item() / output.size(1)
             self.cached_output_prev[name] = output
-        self.monitor.update_clustering_coefficient(clustering)
         self.monitor.update_output_convergence(convergence)
         self.monitor.update_sparsity(sparsity)
+        self.monitor.update_loss(loss=self.loss_x, mode='pairwise x')
         self.cached_output.clear()
         self.cached_labels.clear()
         if self.timer.epoch == self.timer.n_epochs:
             print(f"{convergence=}")
             print(f"{sparsity=}")
-            print(f"{clustering=}")
-
-    def _plot_x_heatmap(self):
-        centroids = MeanOnlineLabels()
-        for x, labels in self.data_loader.eval():
-            centroids.update(x, labels)
-        mean = centroids.get_mean()
-        self.monitor.clusters_heatmap(mean, title="X mean activations")
 
     def training_started(self):
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
-        # self._plot_x_heatmap()
+        xc = MeanOnlineLabels()
+        x = []
+        for x_batch, labels in self.data_loader.eval():
+            x.append(x_batch)
+            xc.update(x_batch, labels)
+            h, y = self.model(x_batch)
+            self.cached_labels.append(labels)
+            self.cached_output['h'].append(h)
+            self.cached_output['y'].append(y)
+        x = torch.cat(x)
+        labels = torch.cat(self.cached_labels)
+        self.loss_x = compute_loss(x, labels)
+        # self.monitor.clusters_heatmap(xc.get_mean(), title="Embeddings X")
+        self._update_cached()
 
     def _epoch_finished(self, loss):
         self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())

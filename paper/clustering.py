@@ -10,7 +10,7 @@ from tqdm import trange
 from kwta import iWTA, update_weights, iWTA_history, kWTA
 from permanence import PermanenceVogels, PermanenceFixedSparsity, \
     PermanenceVaryingSparsity
-from utils import compute_clustering_coefficient
+from utils import compute_loss
 
 # Fix the random seed to reproduce the results
 np.random.seed(0)
@@ -19,28 +19,17 @@ N_x = N_y = N_h = 200
 s_x = 0.2
 s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
 
-N_REPEATS, N_ITERS = 1, 50
+N_REPEATS, N_ITERS = 1, 5
 N_CHOOSE = 100
 
 N_CLASSES = 10
 N_SAMPLES_PER_CLASS = 100
 
 
-def compute_accuracy(output, labels):
-    mean = np.vstack([output[labels == l].mean(0) for l in np.unique(labels)])
-    output = output / np.linalg.norm(output, axis=1, keepdims=True)
-    mean = mean / np.linalg.norm(mean, axis=1, keepdims=True)
-    similarity = output.dot(mean.T)  # (n_samples, n_classes)
-    labels_pred = similarity.argmax(axis=1)
-    accuracy = np.mean(labels == labels_pred)
-    return accuracy
-
-
 for method in (None, PermanenceFixedSparsity, PermanenceVaryingSparsity, 'kWTA'):
     y_sparsity = np.zeros((N_REPEATS, N_ITERS))
-    clustering_coefficient = np.zeros((N_REPEATS, N_ITERS))
-    accuracy = np.zeros((N_REPEATS, N_ITERS))
-    accuracy_x = np.zeros(N_REPEATS)
+    loss = np.zeros((N_REPEATS, N_ITERS))
+    loss_x = np.zeros(N_REPEATS)
     weight_sparsity = {w: np.zeros(N_REPEATS) for w in ("w_hy", "w_hh", "w_yh", "w_yy")}
 
     for repeat in trange(N_REPEATS):
@@ -52,7 +41,7 @@ for method in (None, PermanenceFixedSparsity, PermanenceVaryingSparsity, 'kWTA')
         white_noise = np.random.binomial(1, 0.5 * s_x, size=x.shape)
         x ^= white_noise
 
-        accuracy_x[repeat] = compute_accuracy(x.T, labels)
+        loss_x[repeat] = compute_loss(x.T, labels)
 
         w_xy = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
         w_xh = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
@@ -101,25 +90,21 @@ for method in (None, PermanenceFixedSparsity, PermanenceVaryingSparsity, 'kWTA')
                 update_weights(w_yh, x_pre=y, x_post=h, n_choose=N_CHOOSE)
                 update_weights(w_yy, x_pre=y, x_post=y, n_choose=N_CHOOSE)
             y_sparsity[repeat, iter_id] = y.mean()
-            clustering_coefficient[repeat, iter_id] = compute_clustering_coefficient(y.T, labels)
-            accuracy[repeat, iter_id] = compute_accuracy(y.T, labels)
+            loss[repeat, iter_id] = compute_loss(y.T, labels)
         weight_sparsity["w_hy"][repeat] = w_hy.mean()
         weight_sparsity["w_hh"][repeat] = w_hh.mean()
         weight_sparsity["w_yh"][repeat] = w_yh.mean()
         weight_sparsity["w_yy"][repeat] = w_yy.mean()
 
-    accuracy_x = np.mean(accuracy_x)
-    print(f"{accuracy_x=}")
     y_sparsity = y_sparsity.mean(axis=0)
     print(f"{y_sparsity=}")
 
     for w, w_sparsity in weight_sparsity.items():
         print(f"{w} final sparsity: {w_sparsity.mean():.3f}")
 
-    fig, axes = plt.subplots(nrows=2, sharex=True)
-    axes[0].set_ylabel("Clustering coefficient")
-    axes[1].set_ylabel("Accuracy")
-    axes[1].set_xlabel("Iteration")
+    fig, ax = plt.subplots()
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Loss")
     if method == 'kWTA':
         experiment_name = method
     elif method is None:
@@ -127,13 +112,15 @@ for method in (None, PermanenceFixedSparsity, PermanenceVaryingSparsity, 'kWTA')
     else:
         experiment_name = method.__name__
     experiment_name = f"{experiment_name} ($s_y$ = {y_sparsity[-1]:.3f})"
-    plt.suptitle(experiment_name)
+    ax.set_title(experiment_name)
 
-    for ax, metric in zip(axes, [clustering_coefficient, accuracy]):
-        mean = metric.mean(axis=0)
-        std = metric.std(axis=0)
-        ax.plot(range(N_ITERS), mean)
-        ax.fill_between(range(N_ITERS), mean + std, mean - std, alpha=0.2)
+    mean = loss.mean(axis=0)
+    std = loss.std(axis=0)
+    ax.plot(range(N_ITERS), mean, label="Output Y")
+    ax.fill_between(range(N_ITERS), mean + std, mean - std, alpha=0.2)
+    loss_x = np.mean(loss_x)
+    ax.axhline(y=loss_x, xmin=0, xmax=N_ITERS - 1, ls='--', color='gray', label="Input X")
+    ax.legend()
 
     results_dir = Path("results")
     results_dir.mkdir(exist_ok=True)

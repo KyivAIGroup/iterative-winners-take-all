@@ -46,29 +46,23 @@ def l0_sparsity(tensor):
     return tensor.count_nonzero().item() / tensor.nelement()
 
 
-def compute_clustering_coefficient(tensor: torch.Tensor, labels: torch.Tensor):
-    # tensor shape is (n_samples, n_features)
-    dist_nonzero = torch.pdist(tensor)
-    n = tensor.size(0)
-    dist = torch.zeros(n, n, device=tensor.device)
-    ii, jj = torch.triu_indices(row=n, col=n, offset=1)
-    dist[ii, jj] = dist_nonzero
-    ii, jj = torch.tril_indices(row=n, col=n, offset=-1)
-    dist[ii, jj] = dist_nonzero
-    clustering_coef = []
+def compute_loss(tensor: torch.Tensor, labels: torch.Tensor):
+    tensor = tensor / tensor.norm(dim=1, keepdim=True)
+    cos = tensor.matmul(tensor.t())
+    loss = []
     for label in labels.unique():
         mask_same = labels == label
-        dist_same = dist[mask_same][:, mask_same]
-        if dist_same.nelement() == 1:
+        cos_same = cos[mask_same][:, mask_same]
+        if cos_same.nelement() == 1:
             continue
-        dist_other = dist[mask_same][:, ~mask_same]
-        n = dist_same.size(0)
+        cos_other = cos[mask_same][:, ~mask_same]
+        n = cos_same.size(0)
         ii, jj = torch.triu_indices(row=n, col=n, offset=1)
-        dist_same = dist_same[ii, jj].mean()
-        if dist_same != 0:
+        cos_same = cos_same[ii, jj].mean()
+        if cos_same != 0:
             # all vectors degenerated in a single vector
-            clustering_coef.append(dist_other.mean() / dist_same)
-    if len(clustering_coef) == 0:
+            loss.append(1 - cos_same + cos_other.mean())
+    if len(loss) == 0:
         return None
-    clustering_coef = torch.stack(clustering_coef).mean().item()
-    return clustering_coef
+    loss = torch.stack(loss).mean()
+    return loss

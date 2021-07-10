@@ -157,15 +157,6 @@ class MonitorIWTA(MonitorEmbedding):
                 xtype='log',
             ))
 
-    def update_clustering_coefficient(self, factors: dict):
-        labels, factors = zip(*factors.items())
-        self.viz.line_update(y=factors, opts=dict(
-            xlabel='Epoch',
-            ylabel='dist-other / dist-same',
-            title="Clustering discriminative factor",
-            legend=list(labels),
-        ))
-
     def update_output_convergence(self, convergence: dict):
         if len(convergence) == 0:
             return

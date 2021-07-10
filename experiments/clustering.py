@@ -4,7 +4,7 @@ from tqdm import trange
 
 from constants import RESULTS_DIR
 from kwta import iWTA, update_weights, kWTA, kWTA_different_k
-from utils import compute_clustering_coefficient
+from utils import compute_loss
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.1, 0.02
@@ -57,9 +57,9 @@ for experiment in trange(N_REPEATS):
                                   ks=n_active_batch)
         n_active[experiment, epoch] = n_active_batch.mean()
 
-        stats['iwta'][experiment, epoch] = compute_clustering_coefficient(y_batch.T, labels)
-        stats['kwta'][experiment, epoch] = compute_clustering_coefficient(y_kwta.T, labels)
-        stats['kwta-fixed-k'][experiment, epoch] = compute_clustering_coefficient(y_kwta_fixed_k.T, labels)
+        stats['iwta'][experiment, epoch] = compute_loss(y_batch.T, labels)
+        stats['kwta'][experiment, epoch] = compute_loss(y_kwta.T, labels)
+        stats['kwta-fixed-k'][experiment, epoch] = compute_loss(y_kwta_fixed_k.T, labels)
 
 colormap = {
     'iwta': 'green',
@@ -77,9 +77,9 @@ for key in stats.keys():
     ax.plot(range(N_ITERS), mean, lw=2, label=key, color=colormap[key])
     ax.fill_between(range(N_ITERS), mean + std, mean - std,
                     facecolor=colormap[key], alpha=0.3)
-ax.set_title(f"Clustering. num_to_learn={NUM_TO_LEARN}")
+ax.set_title(f"num_to_learn={NUM_TO_LEARN}")
 ax.legend()
 ax.set_xlabel('Epoch')
-ax.set_ylabel('Discriminative factor (inner / intra dist)')
+ax.set_ylabel('Loss')
 plt.savefig(RESULTS_DIR / "clustering.jpg")
 plt.show()
