@@ -8,7 +8,7 @@ from mighty.utils.common import set_seed
 from mighty.utils.data import DataLoader
 from nn.kwta import *
 from nn.trainer import TrainerIWTA
-from nn.nn_utils import NoShuffleLoader, sample_bernoulli, compute_discriminative_factor
+from nn.nn_utils import NoShuffleLoader, sample_bernoulli, compute_clustering_coefficient
 from mighty.utils.domain import MonitorLevel
 from mighty.monitor.accuracy import AccuracyEmbedding, calc_accuracy
 
@@ -30,33 +30,30 @@ class TrainerIWTAClustering(TrainerIWTA):
 
 class NoisyCentroids(TensorDataset):
     def __init__(self, *args, **kwargs):
-        super().__init__(xs, labels)
+        super().__init__(x, labels)
 
 
 def print_info_x():
     acc = AccuracyEmbedding(cache=True)
-    acc.partial_fit(xs, labels)
+    acc.partial_fit(x, labels)
     labels_pred = acc.predict_cached()
     acc.reset()
     print(f"{calc_accuracy(labels_pred, labels.cpu())=}")
-    print(f"{compute_discriminative_factor(xs, labels)=}")
+    print(f"{compute_clustering_coefficient(x, labels)=}")
 
 
-centroids = np.random.binomial(1, s_x, size=(N_x, N_CLASSES))
-assert centroids.any(axis=0).all(), "Pick another seed"
-
-xs = np.repeat(centroids, repeats=N_SAMPLES_PER_CLASS, axis=1).T
+centroids = np.random.binomial(1, s_x, size=(N_CLASSES, N_x))
+assert centroids.any(axis=1).all(), "Pick another seed"
 labels = np.repeat(np.arange(N_CLASSES), N_SAMPLES_PER_CLASS)
-white_noise = np.random.binomial(1, 0.5 * s_x, size=xs.shape)
-xs ^= white_noise
-shuffle_idx = np.random.permutation(len(xs))
-xs = xs[shuffle_idx]
-labels = labels[shuffle_idx]
+np.random.shuffle(labels)
+x = centroids[labels]
+white_noise = np.random.binomial(1, 0.5 * s_x, size=x.shape)
+x ^= white_noise
 
-xs = torch.from_numpy(xs).float()
+x = torch.from_numpy(x).float()
 labels = torch.from_numpy(labels)
 if torch.cuda.is_available():
-    xs = xs.cuda()
+    x = x.cuda()
     labels = labels.cuda()
 
 print_info_x()

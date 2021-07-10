@@ -152,7 +152,7 @@ class MonitorIWTA(MonitorEmbedding):
                 xtype='log',
             ))
 
-    def update_discriminative_factor(self, factors: dict):
+    def update_clustering_coefficient(self, factors: dict):
         labels, factors = zip(*factors.items())
         self.viz.line_update(y=factors, opts=dict(
             xlabel='Epoch',

@@ -4,7 +4,7 @@ from tqdm import trange
 
 from constants import RESULTS_DIR
 from kwta import iWTA, update_weights, kWTA, kWTA_different_k
-from utils import compute_discriminative_factor
+from utils import compute_clustering_coefficient
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.1, 0.02
@@ -57,9 +57,9 @@ for experiment in trange(N_REPEATS):
                                   ks=n_active_batch)
         n_active[experiment, epoch] = n_active_batch.mean()
 
-        stats['iwta'][experiment, epoch] = compute_discriminative_factor(y_batch.T, labels)
-        stats['kwta'][experiment, epoch] = compute_discriminative_factor(y_kwta.T, labels)
-        stats['kwta-fixed-k'][experiment, epoch] = compute_discriminative_factor(y_kwta_fixed_k.T, labels)
+        stats['iwta'][experiment, epoch] = compute_clustering_coefficient(y_batch.T, labels)
+        stats['kwta'][experiment, epoch] = compute_clustering_coefficient(y_kwta.T, labels)
+        stats['kwta-fixed-k'][experiment, epoch] = compute_clustering_coefficient(y_kwta_fixed_k.T, labels)
 
 colormap = {
     'iwta': 'green',

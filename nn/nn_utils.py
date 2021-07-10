@@ -46,7 +46,7 @@ def l0_sparsity(tensor):
     return tensor.count_nonzero().item() / tensor.nelement()
 
 
-def compute_discriminative_factor(tensor: torch.Tensor, labels: torch.Tensor):
+def compute_clustering_coefficient(tensor: torch.Tensor, labels: torch.Tensor):
     # tensor shape is (n_samples, n_features)
     dist_nonzero = torch.pdist(tensor)
     n = tensor.size(0)
@@ -55,7 +55,7 @@ def compute_discriminative_factor(tensor: torch.Tensor, labels: torch.Tensor):
     dist[ii, jj] = dist_nonzero
     ii, jj = torch.tril_indices(row=n, col=n, offset=-1)
     dist[ii, jj] = dist_nonzero
-    factor = []
+    clustering_coef = []
     for label in labels.unique():
         mask_same = labels == label
         dist_same = dist[mask_same][:, mask_same]
@@ -67,8 +67,8 @@ def compute_discriminative_factor(tensor: torch.Tensor, labels: torch.Tensor):
         dist_same = dist_same[ii, jj].mean()
         if dist_same != 0:
             # all vectors degenerated in a single vector
-            factor.append(dist_other.mean() / dist_same)
-    if len(factor) == 0:
+            clustering_coef.append(dist_other.mean() / dist_same)
+    if len(clustering_coef) == 0:
         return None
-    factor = torch.stack(factor).mean().item()
-    return factor
+    clustering_coef = torch.stack(clustering_coef).mean().item()
+    return clustering_coef

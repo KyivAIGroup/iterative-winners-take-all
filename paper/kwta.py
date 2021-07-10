@@ -91,6 +91,8 @@ def update_weights(w, x_pre, x_post, n_choose=1):
     for x, y in zip(x_pre.T, x_post.T):
         x = x.nonzero()[0]
         y = y.nonzero()[0]
+        if len(x) == 0 or len(y) == 0:
+            continue
         if n_choose is None:
             # full outer product
             w[np.expand_dims(y, axis=1), x] = 1

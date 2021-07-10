@@ -10,7 +10,7 @@ from mighty.utils.data import DataLoader
 from mighty.utils.stub import OptimizerStub
 from nn.kwta import WTAInterface, IterativeWTASoft
 from nn.monitor import MonitorIWTA
-from nn.nn_utils import compute_discriminative_factor, l0_sparsity
+from nn.nn_utils import compute_clustering_coefficient, l0_sparsity
 
 
 class TrainerIWTA(TrainerEmbedding):
@@ -74,7 +74,7 @@ class TrainerIWTA(TrainerEmbedding):
 
     def _update_cached(self):
         labels = torch.cat(self.cached_labels)
-        factors = {}
+        clustering = {}
         convergence = {}
         sparsity = {}
         for name, output in self.cached_output.items():
@@ -85,14 +85,14 @@ class TrainerIWTA(TrainerEmbedding):
                 mean = torch.stack(mean)
                 self.monitor.clusters_heatmap(mean)
             # self.monitor.plot_assemblies(output, labels, name=name)
-            factors[name] = compute_discriminative_factor(output, labels)
+            clustering[name] = compute_clustering_coefficient(output, labels)
             sparsity[name] = l0_sparsity(output)
             output = output.int()
             if name in self.cached_output_prev:
                 xor = (self.cached_output_prev[name] ^ output).sum(dim=1)
                 convergence[name] = xor.float().mean().item() / output.size(1)
             self.cached_output_prev[name] = output
-        self.monitor.update_discriminative_factor(factors)
+        self.monitor.update_clustering_coefficient(clustering)
         self.monitor.update_output_convergence(convergence)
         self.monitor.update_sparsity(sparsity)
         self.cached_output.clear()
@@ -100,7 +100,7 @@ class TrainerIWTA(TrainerEmbedding):
         if self.timer.epoch == self.timer.n_epochs:
             print(f"{convergence=}")
             print(f"{sparsity=}")
-            print(f"{factors=}")
+            print(f"{clustering=}")
 
     def training_started(self):
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())

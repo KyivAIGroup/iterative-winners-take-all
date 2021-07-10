@@ -17,11 +17,12 @@ def generate_k_active(n, k):
     return x
 
 
-def compute_discriminative_factor(array, labels):
+def compute_clustering_coefficient(array, labels):
     # array shape is (n_samples, n_features)
+    assert len(array) == len(labels)
     dist = pdist(array)
     dist = squareform(dist)
-    factor = []
+    clustering_coef = []
     for label in np.unique(labels):
         mask_same = labels == label
         if mask_same.sum() == 1:
@@ -33,8 +34,8 @@ def compute_discriminative_factor(array, labels):
         dist_same = squareform(dist_same).mean()
         if dist_same != 0:
             # all vectors degenerated in a single vector
-            factor.append(dist_other.mean() / dist_same)
-    if len(factor) == 0:
+            clustering_coef.append(dist_other.mean() / dist_same)
+    if len(clustering_coef) == 0:
         return None
-    factor = np.mean(factor)
-    return factor
+    clustering_coef = np.mean(clustering_coef)
+    return clustering_coef

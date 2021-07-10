@@ -13,7 +13,7 @@ from utils import overlap
 
 N_x, N_y, N_h = 100, 200, 200
 s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh, s_w_yy = 0.5, 0.1, 0.1, 0.1, 0.05, 0.05
-N_REPEATS, N_ITERS = 10, 100
+N_REPEATS, N_ITERS = 10, 10
 K_FIXED = int(0.15 * N_y)
 NUM_TO_LEARN = 50
 
@@ -79,4 +79,4 @@ ax.legend()
 ax.set_xlabel('Iteration')
 ax.set_ylabel('Overlap($y_1$, $y_2$)')
 plt.savefig(RESULTS_DIR / "decorrelation.jpg")
-# plt.show()
+plt.show()

@@ -6,7 +6,7 @@ from kwta import kWTA
 
 def normalize_presynaptic(mat):
     presum = mat.sum(axis=1)[:, np.newaxis]
-    presum += 1e-10
+    presum += 1e-10  # avoid division by zero
     mat /= presum
 
 
@@ -59,21 +59,21 @@ class PermanenceFixedSparsity(np.ndarray):
 
 
 class PermanenceVogels(PermanenceFixedSparsity):
-    N_COINCIDENT = 1
 
-    def update(self, x_pre, x_post, n_choose=1, lr=0.001):
+    def update(self, x_pre, x_post, n_choose=1, lr=0.001,
+               neighbors_coincident=1):
         assert len(x_pre) == len(x_post)
-        window_size = (self.N_COINCIDENT + 1)
+        window_size = (neighbors_coincident + 1)
         n_steps = len(x_pre)
         lr_potentiation = lr / (n_steps * window_size)
         lr_depression = -lr / (n_steps * (n_steps - window_size))
         for i, (x, y) in enumerate(zip(x_pre, x_post)):
-            for j in range(max(0, i - self.N_COINCIDENT), i + 1):
+            for j in range(max(0, i - neighbors_coincident), i + 1):
                 # Potentiation
                 x_recent = x_pre[j]
                 alpha = lr_potentiation * (1 - (i - j) / window_size)
                 super().update(x_pre=x_recent, x_post=y, lr=alpha)
-            for j in range(0, i - self.N_COINCIDENT - 1):
+            for j in range(0, i - neighbors_coincident - 1):
                 # Depression
                 x_past = x_pre[j]
                 super().update(x_pre=x_past, x_post=y, lr=lr_depression)
@@ -86,13 +86,13 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         mat = super().__new__(cls, data)
         mat.excitatory = excitatory
         mat.output_sparsity_desired = output_sparsity_desired
-        mat.weight_sparsity = np.random.random()
+        mat.weight_nonzero_keep = np.random.random()
         return mat
 
     def update_weight_sparsity(self, output_sparsity: float, gamma=0.1):
-        sparsity_inc = gamma * 0.95 + (1 - gamma) * self.weight_sparsity
-        sparsity_dec = gamma * 0.05 + (1 - gamma) * self.weight_sparsity
-        sparsity = self.weight_sparsity
+        sparsity_inc = gamma * 0.95 + (1 - gamma) * self.weight_nonzero_keep
+        sparsity_dec = gamma * 0.05 + (1 - gamma) * self.weight_nonzero_keep
+        sparsity = self.weight_nonzero_keep
         s_min, s_max = self.output_sparsity_desired
         if output_sparsity > s_max:
             sparsity = sparsity_dec if self.excitatory else sparsity_inc
@@ -102,12 +102,12 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
 
     def update(self, x_pre, x_post, n_choose=1, lr=0.001):
         output_sparsity = np.count_nonzero(x_post) / x_post.size
-        self.weight_sparsity = self.update_weight_sparsity(output_sparsity)
+        self.weight_nonzero_keep = self.update_weight_sparsity(output_sparsity)
         super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
 
     def normalize(self):
         normalize_presynaptic(self.permanence)
-        k = math.ceil(self.weight_sparsity * self.size)
+        k = math.ceil(self.weight_nonzero_keep * self.size)
         threshold = self.kWTA_threshold(self.permanence.reshape(-1), k=k)
         self.permanence[self.permanence < threshold] = 0
         self[:] = self.permanence > 0
