@@ -54,7 +54,8 @@ def sample_from_distribution(px, n_neurons, n_samples, k):
 
 
 class TrainerIWTAHabituation(TrainerIWTA):
-    N_CHOOSE = None
+    N_CHOOSE = 100
+    LEARNING_RATE = 0.001
 
     def _update_cached(self):
         labels = torch.cat(self.cached_labels)
@@ -88,12 +89,12 @@ x, labels = sample_from_distribution(px=px, n_neurons=N_x, n_samples=N_SAMPLES_T
 
 Permanence = PermanenceFixedSparsity
 
-w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=True)
-w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=True)
-w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
-w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
-w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
-w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
+w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), excitatory=True, learn=True)
+w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), excitatory=True, learn=True)
+w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), excitatory=False, learn=True)
+w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), excitatory=False, learn=True)
+w_yy = None
+w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), excitatory=True, learn=True)
 
 # w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
 # w_yy = None

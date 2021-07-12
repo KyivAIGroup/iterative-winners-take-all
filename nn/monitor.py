@@ -11,6 +11,7 @@ from mighty.monitor.accuracy import calc_accuracy
 from mighty.monitor.monitor import MonitorEmbedding, ParamRecord
 from mighty.utils.domain import MonitorLevel
 from mighty.utils.common import clone_cpu
+from nn_utils import PERMANENCE_INSTABILITY
 
 
 class ParamRecordBinary(ParamRecord):
@@ -20,6 +21,8 @@ class ParamRecordBinary(ParamRecord):
             # not learnable
             monitor_level = MonitorLevel.DISABLED
             sign_flips = None
+        if not (monitor_level & PERMANENCE_INSTABILITY):
+            sign_flips = None
         super().__init__(param=param, monitor_level=monitor_level)
         if self.prev_data is not None:
             self.prev_data = self.prev_data.int()
@@ -28,7 +31,8 @@ class ParamRecordBinary(ParamRecord):
     def update_signs(self):
         new_data = clone_cpu(self.param.data.int())
         xor = new_data ^ self.prev_data
-        self.sign_flips += xor
+        if self.sign_flips is not None:
+            self.sign_flips += xor
         self.prev_data = new_data
         sign_flips_count = xor.sum().item()
         return sign_flips_count
@@ -139,6 +143,24 @@ class MonitorIWTA(MonitorEmbedding):
         self.update_accuracy(accuracy=accuracy, mode=mode)
         return accuracy
 
+    def weights_heatmap(self, model: nn.Module):
+        for name, param in model.named_parameters():
+            if not param.learn:
+                continue
+            self.viz.heatmap(param.data.flipud(), win=f"{name} heatmap", opts=dict(
+                title=f"{name} binary",
+                xlabel='Neuron Output',
+                ylabel='Neuron Input',
+                ytick=False,
+            ))
+            continue
+            self.viz.heatmap(param.permanence.flipud(), win=f"{name} perm", opts=dict(
+                title=f"{name} permanence",
+                xlabel='Neuron Output',
+                ylabel='Neuron Input',
+                ytick=False,
+            ))
+
     def update_weight_histogram(self):
         if not self._advanced_monitoring_level & MonitorLevel.WEIGHT_HISTOGRAM:
             return
@@ -191,3 +213,7 @@ class MonitorIWTA(MonitorEmbedding):
             ))
         else:
             super().update_sparsity(sparsity, mode)
+
+    def update_loss(self, loss, mode='batch'):
+        if mode.startswith("pairwise"):
+            super().update_loss(loss, mode=mode)

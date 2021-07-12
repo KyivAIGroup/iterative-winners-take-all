@@ -5,19 +5,19 @@ import torch.nn as nn
 
 from mighty.monitor.accuracy import AccuracyEmbedding
 from mighty.trainer import TrainerEmbedding, TrainerGrad
-from mighty.utils.common import clone_cpu
+from mighty.utils.common import batch_to_cuda, clone_cpu
 from mighty.utils.data import DataLoader
 from mighty.utils.stub import OptimizerStub
+from mighty.utils.var_online import MeanOnlineLabels
 from nn.kwta import WTAInterface, IterativeWTASoft
 from nn.monitor import MonitorIWTA
 from nn.nn_utils import compute_loss, l0_sparsity
-from mighty.utils.var_online import MeanOnlineLabels
 
 
 class TrainerIWTA(TrainerEmbedding):
 
     watch_modules = TrainerEmbedding.watch_modules + (WTAInterface,)
-    N_CHOOSE = None
+    N_CHOOSE = 100
     LEARNING_RATE = 0.001
 
     def __init__(self,
@@ -37,6 +37,11 @@ class TrainerIWTA(TrainerEmbedding):
         self.cached_output = defaultdict(list)
         self.cached_output_prev = {}
         self.loss_x = None
+
+    def log_trainer(self):
+        super().log_trainer()
+        self.monitor.log(f"LEARNING_RATE={self.LEARNING_RATE}")
+        self.monitor.log(f"N_CHOOSE={self.N_CHOOSE}")
 
     def mi_save_activations_y(self, module, tin, tout):
         """
@@ -103,11 +108,13 @@ class TrainerIWTA(TrainerEmbedding):
             print(f"{sparsity=}")
 
     def training_started(self):
+        self.monitor.weights_heatmap(self.model)
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
         xc = MeanOnlineLabels()
         x = []
         for x_batch, labels in self.data_loader.eval():
+            x_batch, labels = batch_to_cuda((x_batch, labels))
             x.append(x_batch)
             xc.update(x_batch, labels)
             h, y = self.model(x_batch)
@@ -121,6 +128,7 @@ class TrainerIWTA(TrainerEmbedding):
         self._update_cached()
 
     def _epoch_finished(self, loss):
+        self.monitor.weights_heatmap(self.model)
         self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())

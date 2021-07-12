@@ -23,8 +23,8 @@ s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
 
 
 class TrainerIWTADecorrelation(TrainerIWTA):
-    N_CHOOSE = None
-    pass
+    N_CHOOSE = 10
+    LEARNING_RATE = 0.001
 
 
 class RandomDataset(TensorDataset):
@@ -37,12 +37,12 @@ labels = torch.arange(x.size(0), device=x.device)
 
 Permanence = PermanenceVaryingSparsity
 
-w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=True)
-w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=True)
-w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
-w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
-w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
-w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
+w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), excitatory=True, learn=True)
+w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), excitatory=True, learn=True)
+w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), excitatory=False, learn=True)
+w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), excitatory=False, learn=True)
+w_yy = None
+w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), excitatory=True, learn=True)
 
 
 iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
@@ -50,7 +50,7 @@ iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=
 print(iwta)
 
 data_loader = DataLoader(RandomDataset, transform=None,
-                         loader_cls=NoShuffleLoader)
+                         loader_cls=NoShuffleLoader, batch_size=10)
 criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0))
 trainer = TrainerIWTADecorrelation(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)

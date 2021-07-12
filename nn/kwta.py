@@ -29,7 +29,7 @@ def normalize_presynaptic(mat):
 
 class PermanenceFixedSparsity(nn.Parameter):
 
-    def __new__(cls, data: torch.Tensor, learn=True):
+    def __new__(cls, data: torch.Tensor, learn=True, **kwargs):
         assert data.unique().tolist() == [0, 1]
         permanence = data * torch.rand_like(data)
         normalize_presynaptic(permanence)
@@ -82,17 +82,18 @@ class PermanenceFixedSparsity(nn.Parameter):
 
 class PermanenceVaryingSparsity(PermanenceFixedSparsity):
 
-    def __new__(cls, data: torch.Tensor, learn=True,
+    def __new__(cls, data: torch.Tensor, excitatory: bool, learn=True,
                 output_sparsity_desired=(0.025, 0.1)):
         param = super().__new__(cls, data, learn=learn)
+        param.excitatory = excitatory
         param.weight_nonzero_keep = random.random() if learn else None
         param.output_sparsity_desired = output_sparsity_desired
-        param.excitatory = None
+        param.output_sparsity = MeanOnline()
         param.threshold = MeanOnline()
-        param.sp_rmean = None  # output sparsity running mean
         return param
 
     def reset(self):
+        self.output_sparsity.reset()
         self.threshold.reset()
 
     def update_weight_sparsity(self, output_sparsity: float, gamma=0.1):
@@ -110,7 +111,8 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         if not self.learn:
             # not learnable
             return
-        output_sparsity = l0_sparsity(x_post)
+        self.output_sparsity.update(torch.Tensor([l0_sparsity(x_post)]))
+        output_sparsity = self.output_sparsity.get_mean().item()
         self.weight_nonzero_keep = self.update_weight_sparsity(output_sparsity)
         super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
 
@@ -178,15 +180,6 @@ class KWTAFunction(torch.autograd.Function):
 class WTAInterface(nn.Module):
     def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None):
         super().__init__()
-        w_xy.excitatory = True
-        w_xh.excitatory = True
-        w_hy.excitatory = False
-        if w_yy is not None:
-            w_yy.excitatory = True
-        if w_hh is not None:
-            w_hh.excitatory = False
-        if w_yh is not None:
-            w_yh.excitatory = True
         self.w_xy = w_xy
         self.w_xh = w_xh
         self.w_hy = w_hy
@@ -255,6 +248,18 @@ class KWTANet(WTAInterface):
 
 
 class IterativeWTA(WTAInterface):
+    def __init__(self, w_xy, w_xh, w_hy, w_yy=None, w_hh=None, w_yh=None):
+        super().__init__(w_xy, w_xh, w_hy, w_yy=w_yy, w_hh=w_hh, w_yh=w_yh)
+        self.freq = dict(
+            y=MeanOnline(torch.zeros(w_xy.size(1), device=w_xy.device)),
+            h=MeanOnline(torch.zeros(w_xh.size(1), device=w_xh.device))
+        )
+
+    def epoch_finished(self):
+        super().epoch_finished()
+        for freq in self.freq.values():
+            freq.mean.fill_(0)
+            freq.count = 0
 
     def forward(self, x):
         x = torch.atleast_2d(x)
@@ -264,18 +269,20 @@ class IterativeWTA(WTAInterface):
         h = torch.zeros_like(h0)
         y = torch.zeros_like(y0)
         t_start = int(max(h0.max().item(), y0.max().item()))
+        inh_h = 1.0 - self.freq['h'].get_mean()
+        inh_y = 1.0 - self.freq['y'].get_mean()
         for threshold in range(t_start, 0, -1):
             z_h = h0
             if self.w_hh is not None:
                 z_h = z_h - h @ self.w_hh
             if self.w_yh is not None:
                 z_h = z_h + y @ self.w_yh
-            z_h = z_h >= threshold
+            z_h = (z_h * inh_h) >= threshold
 
             z_y = y0 - h @ self.w_hy
             if self.w_yy is not None:
                 z_y += y @ self.w_yy
-            z_y = z_y >= threshold
+            z_y = (z_y * inh_y) >= threshold
 
             h += z_h
             y += z_y
@@ -292,6 +299,9 @@ class IterativeWTA(WTAInterface):
             y_kwta = KWTAFunction.apply(y0 - h_kwta @ self.w_hy, 1)
             h[empty_trials] = h_kwta[empty_trials]
             y[empty_trials] = y_kwta[empty_trials]
+
+        self.freq['h'].update(h.mean(dim=0))
+        self.freq['y'].update(y.mean(dim=0))
 
         return h, y
 

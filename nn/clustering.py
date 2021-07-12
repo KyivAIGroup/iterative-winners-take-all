@@ -8,8 +8,9 @@ from mighty.utils.common import set_seed
 from mighty.utils.data import DataLoader
 from mighty.utils.domain import MonitorLevel
 from nn.kwta import *
-from nn.nn_utils import NoShuffleLoader, sample_bernoulli
+from nn.nn_utils import NoShuffleLoader, sample_bernoulli, DataLoaderSequential
 from nn.trainer import TrainerIWTA
+from mighty.utils.stub import CriterionStub
 
 set_seed(0)
 
@@ -27,6 +28,7 @@ N_SAMPLES_PER_CLASS = 100
 
 class TrainerIWTAClustering(TrainerIWTA):
     N_CHOOSE = 100
+    LEARNING_RATE = 0.001
     pass
 
 
@@ -40,7 +42,7 @@ assert centroids.any(axis=1).all(), "Pick another seed"
 labels = np.repeat(np.arange(N_CLASSES), N_SAMPLES_PER_CLASS)
 np.random.shuffle(labels)
 x = centroids[labels]
-white_noise = np.random.binomial(1, 0.5 * s_x, size=x.shape)
+white_noise = np.random.binomial(1, 0.1, size=x.shape)
 x ^= white_noise
 
 x = torch.from_numpy(x).float()
@@ -51,25 +53,27 @@ if torch.cuda.is_available():
 
 Permanence = PermanenceVaryingSparsity
 
-w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
-w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
-w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
-w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
-w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), learn=True)
-w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), learn=True)
-# w_hh = None
-# w_yy = None
-# w_yh = None
+w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), excitatory=True, learn=True)
+w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), excitatory=True, learn=True)
+w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), excitatory=False, learn=True)
+w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), excitatory=False, learn=True)
+# w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), excitatory=True, learn=True)
+w_yy = None
+w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), excitatory=True,
+                  learn=True)
 
 data_loader = DataLoader(NoisyCentroids, transform=None,
-                         loader_cls=NoShuffleLoader)
-criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0))
+                         loader_cls=NoShuffleLoader, batch_size=50)
+if isinstance(data_loader, DataLoaderSequential):
+    criterion = CriterionStub()
+else:
+    criterion = ContrastiveLossSampler(nn.CosineEmbeddingLoss(margin=0))
 
-# iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
-iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=10, ky=10)
+iwta = IterativeWTA(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
+# iwta = KWTANet(w_xy=w_xy, w_xh=w_xh, w_hy=w_hy, kh=int(0.05 * N_h), ky=int(0.05 * N_y))
 print(iwta)
 
 trainer = TrainerIWTAClustering(model=iwta, criterion=criterion,
                                    data_loader=data_loader, verbosity=1)
-trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS | MonitorLevel.WEIGHT_HISTOGRAM)
+trainer.monitor.advanced_monitoring(level=MonitorLevel.SIGN_FLIPS)
 trainer.train(n_epochs=20)

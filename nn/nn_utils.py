@@ -1,6 +1,11 @@
 import math
+import numpy as np
 import torch
 import torch.utils.data
+
+from mighty.utils.data.loader import DataLoader, DATA_DIR
+
+PERMANENCE_INSTABILITY = 0b100000
 
 
 def sample_bernoulli(shape, p):
@@ -18,6 +23,17 @@ def random_choice(vec: torch.Tensor, n_choose: int):
 class NoShuffleLoader(torch.utils.data.DataLoader):
     def __init__(self, *args, shuffle=False, **kwargs):
         super().__init__(*args, shuffle=False, **kwargs)
+
+
+class DataLoaderSequential(DataLoader):
+    def get(self, train=True):
+        dataset = self.dataset_cls(DATA_DIR, train=train, download=True,
+                                   transform=self.transform)
+        loader = self.loader_cls(dataset,
+                                 batch_size=1,
+                                 shuffle=train,
+                                 num_workers=self.num_workers)
+        return loader
 
 
 def get_optimizer_scheduler(model):
@@ -50,19 +66,23 @@ def compute_loss(tensor: torch.Tensor, labels: torch.Tensor):
     tensor = tensor / tensor.norm(dim=1, keepdim=True)
     cos = tensor.matmul(tensor.t())
     loss = []
+    labels_unique = labels.unique()
+    clustering = len(labels) > len(labels_unique)
     for label in labels.unique():
         mask_same = labels == label
-        cos_same = cos[mask_same][:, mask_same]
-        if cos_same.nelement() == 1:
-            continue
         cos_other = cos[mask_same][:, ~mask_same]
-        n = cos_same.size(0)
-        ii, jj = torch.triu_indices(row=n, col=n, offset=1)
-        cos_same = cos_same[ii, jj].mean()
-        if cos_same != 0:
-            # all vectors degenerated in a single vector
-            loss.append(1 - cos_same + cos_other.mean())
+        cos_other = cos_other.mean().item()
+        if clustering:
+            cos_same = cos[mask_same][:, mask_same]
+            n = cos_same.size(0)
+            if n == 1:
+                continue
+            ii, jj = torch.triu_indices(row=n, col=n, offset=1)
+            cos_same = cos_same[ii, jj].mean().item()
+            loss.append(1 - cos_same + cos_other)
+        else:
+            loss.append(cos_other)
     if len(loss) == 0:
         return None
-    loss = torch.stack(loss).mean()
+    loss = np.mean(loss)
     return loss
