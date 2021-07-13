@@ -12,6 +12,7 @@ __all__ = [
     "ParameterBinary",
     "PermanenceFixedSparsity",
     "PermanenceVaryingSparsity",
+    "PermanenceVogels",
     "KWTAFunction",
     "KWTANet",
     "WTAInterface",
@@ -168,11 +169,12 @@ class PermanenceVogels(PermanenceFixedSparsity):
                 # Potentiation
                 x_recent = x_pre[j]
                 alpha = lr_potentiation * (1 - (i - j) / window_size)
-                super().update(x_pre=x_recent, x_post=y, lr=alpha)
+                ParameterBinary.update(self, x_pre=x_recent, x_post=y, lr=alpha)
             for j in range(0, i - neighbors_coincident - 1):
                 # Depression
                 x_past = x_pre[j]
-                super().update(x_pre=x_past, x_post=y, lr=lr_depression)
+                ParameterBinary.update(self, x_pre=x_past, x_post=y, lr=lr_depression)
+        self.normalize()
 
     def normalize(self):
         self.permanence.clamp_min_(0)
