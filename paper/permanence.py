@@ -10,7 +10,32 @@ def normalize_presynaptic(mat):
     mat /= presum
 
 
-class PermanenceFixedSparsity(np.ndarray):
+class ParameterBinary(np.ndarray):
+
+    def __new__(cls, data, **kwargs):
+        assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
+        mat = np.array(data, dtype=np.int32).view(cls)
+        return mat
+
+    def update(self, x_pre, x_post, n_choose=1, **kwargs):
+        # x_pre and x_post are (N, trials) tensors
+        assert x_pre.shape[1] == x_post.shape[1], "Batch size mismatch"
+        for x, y in zip(x_pre.T, x_post.T):
+            x = x.nonzero()[0]
+            y = y.nonzero()[0]
+            if len(x) == 0 or len(y) == 0:
+                continue
+            if n_choose is None or n_choose >= len(x) * len(y):
+                # full outer product
+                self[np.expand_dims(y, axis=1), x] = 1
+            else:
+                # a subset of the outer product
+                x = np.random.choice(x, n_choose)
+                y = np.random.choice(y, n_choose)
+                self[y, x] = 1
+
+
+class PermanenceFixedSparsity(ParameterBinary):
 
     def __new__(cls, data, **kwargs):
         assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
@@ -48,7 +73,6 @@ class PermanenceFixedSparsity(np.ndarray):
         self.normalize()
 
     def normalize(self):
-        # self.permanence.clip(min=0, out=self.permanence)
         normalize_presynaptic(self.permanence)
         data = kWTA(self.permanence.reshape(-1), k=self.sum())
         self[:] = data.reshape(self.shape)
@@ -73,8 +97,14 @@ class PermanenceVogels(PermanenceFixedSparsity):
                 # Depression
                 x_past = x_pre[j]
                 super().update(x_pre=x_past, x_post=y, lr=lr_depression)
+        self.normalize_vogels()
 
     def normalize(self):
+        # Called each time super().update() is executed.
+        # Don't normalize intermediate z_h and z_y updates.
+        pass
+
+    def normalize_vogels(self):
         self.permanence.clip(min=0, out=self.permanence)
         super().normalize()
 
