@@ -13,6 +13,8 @@ def normalize_presynaptic(mat):
 class ParameterBinary(np.ndarray):
 
     def __new__(cls, data, **kwargs):
+        if data is None:
+            return None
         assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
         mat = np.array(data, dtype=np.int32).view(cls)
         return mat
@@ -38,6 +40,8 @@ class ParameterBinary(np.ndarray):
 class PermanenceFixedSparsity(ParameterBinary):
 
     def __new__(cls, data, **kwargs):
+        if data is None:
+            return None
         assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
         mat = np.array(data, dtype=np.int32).view(cls)
         permanence = data * np.random.random(data.shape)
@@ -113,6 +117,8 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
 
     def __new__(cls, data, excitatory: bool,
                 output_sparsity_desired=(0.025, 0.1)):
+        if data is None:
+            return None
         mat = super().__new__(cls, data)
         mat.excitatory = excitatory
         mat.output_sparsity_desired = output_sparsity_desired

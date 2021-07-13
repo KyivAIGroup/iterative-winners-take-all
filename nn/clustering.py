@@ -27,8 +27,8 @@ N_SAMPLES_PER_CLASS = 100
 
 
 class TrainerIWTAClustering(TrainerIWTA):
-    N_CHOOSE = 100
-    LEARNING_RATE = 0.001
+    N_CHOOSE = 10
+    LEARNING_RATE = 0.01
     pass
 
 
@@ -67,8 +67,8 @@ else:
     w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), excitatory=True, learn=True)
     w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), excitatory=False, learn=True)
     w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), excitatory=False, learn=True)
-    w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), excitatory=True, learn=True)
-    # w_yy = None
+    # w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), excitatory=True, learn=True)
+    w_yy = None
     w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), excitatory=True, learn=True)
 
 data_loader = DataLoader(NoisyCentroids, transform=None,

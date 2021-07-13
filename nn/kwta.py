@@ -298,10 +298,10 @@ class IterativeWTA(WTAInterface):
         h = torch.zeros_like(h0)
         y = torch.zeros_like(y0)
         t_start = int(max(h0.max().item(), y0.max().item()))
-        inh_h = 1.0 - self.freq['h'].get_mean()
-        inh_y = 1.0 - self.freq['y'].get_mean()
         # inh_h = torch.exp(-1 * self.freq['h'].get_mean())
         # inh_y = torch.exp(-1 * self.freq['y'].get_mean())
+        inh_h = 1
+        inh_y = 1
         for threshold in range(t_start, 0, -1):
             z_h = h0
             if self.w_hh is not None:

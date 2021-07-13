@@ -28,12 +28,23 @@ def compute_loss(output, labels):
     return loss
 
 
+def cluster_centroids(output, labels):
+    centroids = [output[labels == l].mean(axis=0) for l in np.unique(labels)]
+    centroids = np.vstack(centroids)
+    return centroids
+
+
 def compute_accuracy(output, labels):
     assert len(output) == len(labels)
     output = output / np.linalg.norm(output, axis=1, keepdims=True)
-    centroids = [output[labels == l].mean(axis=0) for l in np.unique(labels)]
-    centroids = np.vstack(centroids)
+    centroids = cluster_centroids(output, labels)
     cosine_similarity = output.dot(centroids.T)
     labels_pred = cosine_similarity.argmax(axis=1)
     accuracy = (labels == labels_pred).mean()
     return accuracy
+
+
+def compute_convergence(output, output_prev):
+    if output is None or output_prev is None:
+        return None
+    return (output ^ output_prev).mean()
