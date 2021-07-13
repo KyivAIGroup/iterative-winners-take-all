@@ -217,3 +217,12 @@ class MonitorIWTA(MonitorEmbedding):
     def update_loss(self, loss, mode='batch'):
         if mode.startswith("pairwise"):
             super().update_loss(loss, mode=mode)
+
+    def update_contribution(self, contribution: dict):
+        labels, contribution = zip(*contribution.items())
+        contribution = torch.stack(contribution)
+        self.viz.heatmap(contribution, win="contribution", opts=dict(
+            title="Weight contribution",
+            rownames=list(labels),
+            xlabel='Neuron Output',
+        ))

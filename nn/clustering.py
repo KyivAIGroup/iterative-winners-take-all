@@ -51,19 +51,28 @@ if torch.cuda.is_available():
     x = x.cuda()
     labels = labels.cuda()
 
-Permanence = PermanenceVaryingSparsity
+CLASSICAL_WILLSHAW = 0
 
-w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), excitatory=True, learn=True)
-w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), excitatory=True, learn=True)
-w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), excitatory=False, learn=True)
-w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), excitatory=False, learn=True)
-# w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), excitatory=True, learn=True)
-w_yy = None
-w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), excitatory=True,
-                  learn=True)
+if CLASSICAL_WILLSHAW:
+    w_xy = ParameterBinary(sample_bernoulli((N_x, N_y), p=s_w_xy), learn=False)
+    w_xh = ParameterBinary(sample_bernoulli((N_x, N_h), p=s_w_xh), learn=False)
+    w_hy = ParameterBinary(sample_bernoulli((N_h, N_y), p=s_w_hy), learn=True)
+    w_hh = ParameterBinary(sample_bernoulli((N_h, N_h), p=s_w_hy), learn=True)
+    w_yy = None
+    w_yh = None
+else:
+    Permanence = PermanenceVaryingSparsity
+
+    w_xy = Permanence(sample_bernoulli((N_x, N_y), p=s_w_xy), excitatory=True, learn=True)
+    w_xh = Permanence(sample_bernoulli((N_x, N_h), p=s_w_xh), excitatory=True, learn=True)
+    w_hy = Permanence(sample_bernoulli((N_h, N_y), p=s_w_hy), excitatory=False, learn=True)
+    w_hh = Permanence(sample_bernoulli((N_h, N_h), p=s_w_hy), excitatory=False, learn=True)
+    w_yy = Permanence(sample_bernoulli((N_y, N_y), p=s_w_yy), excitatory=True, learn=True)
+    # w_yy = None
+    w_yh = Permanence(sample_bernoulli((N_y, N_h), p=s_w_yh), excitatory=True, learn=True)
 
 data_loader = DataLoader(NoisyCentroids, transform=None,
-                         loader_cls=NoShuffleLoader, batch_size=50)
+                         loader_cls=NoShuffleLoader, batch_size=256)
 if isinstance(data_loader, DataLoaderSequential):
     criterion = CriterionStub()
 else:

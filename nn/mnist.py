@@ -17,7 +17,8 @@ set_seed(0)
 
 # N_x = 28 ** 2
 # N_h = N_y = 1024
-N_x = N_h = N_y = 15 ** 2
+size = 20
+N_x = N_h = N_y = size ** 2
 s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.1
 
 
@@ -83,7 +84,7 @@ w_xy = PermanenceVaryingSparsity(sample_bernoulli((N_x, N_y), p=s_w_xy), excitat
 w_xh = PermanenceVaryingSparsity(sample_bernoulli((N_x, N_h), p=s_w_xh), excitatory=True, learn=True)
 w_hy = PermanenceVaryingSparsity(sample_bernoulli((N_h, N_y), p=s_w_hy), excitatory=False, learn=True)
 w_hh = PermanenceVaryingSparsity(sample_bernoulli((N_h, N_h), p=s_w_hy), excitatory=False, learn=True)
-w_yy = None
+w_yy = PermanenceVaryingSparsity(sample_bernoulli((N_y, N_y), p=s_w_yy), excitatory=True, learn=True)
 w_yh = PermanenceVaryingSparsity(sample_bernoulli((N_y, N_h), p=s_w_yh), excitatory=True, learn=True)
 
 
@@ -94,7 +95,7 @@ class BinarizeMnist(nn.Module):
 
 
 data_loader = DataLoader(MNIST, transform=Compose(
-    [Resize(15, interpolation=InterpolationMode.NEAREST),
+    [Resize(size, interpolation=InterpolationMode.NEAREST),
      ToTensor(),
      BinarizeMnist()]))
 criterion = TripletLossSampler(nn.TripletMarginLoss())

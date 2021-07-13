@@ -12,6 +12,7 @@ from mighty.utils.var_online import MeanOnlineLabels
 from nn.kwta import WTAInterface, IterativeWTASoft
 from nn.monitor import MonitorIWTA
 from nn.nn_utils import compute_loss, l0_sparsity
+from mighty.monitor.accuracy import calc_accuracy, AccuracyEmbedding
 
 
 class TrainerIWTA(TrainerEmbedding):
@@ -37,6 +38,7 @@ class TrainerIWTA(TrainerEmbedding):
         self.cached_output = defaultdict(list)
         self.cached_output_prev = {}
         self.loss_x = None
+        self.accuracy_x = None
 
     def log_trainer(self):
         super().log_trainer()
@@ -67,9 +69,15 @@ class TrainerIWTA(TrainerEmbedding):
             return None
         return super().full_forward_pass(train=train)
 
+    def update_contribution(self, h, y):
+        freq = dict(y=y.mean(dim=0), h=h.mean(dim=0))
+        for name, param in self.model.named_parameters():
+            param.update_contribution(freq[name[-1]])
+
     def train_batch(self, batch):
         x, labels = batch
         h, y = self.model(x)
+        self.update_contribution(h, y)
         loss = self._get_loss(batch, (h, y))
         if isinstance(self.model, IterativeWTASoft):
             loss.backward()
@@ -111,24 +119,27 @@ class TrainerIWTA(TrainerEmbedding):
         self.monitor.weights_heatmap(self.model)
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
-        xc = MeanOnlineLabels()
+        x_centroids = AccuracyEmbedding()
         x = []
         for x_batch, labels in self.data_loader.eval():
             x_batch, labels = batch_to_cuda((x_batch, labels))
             x.append(x_batch)
-            xc.update(x_batch, labels)
+            x_centroids.partial_fit(x_batch, labels)
             h, y = self.model(x_batch)
             self.cached_labels.append(labels)
             self.cached_output['h'].append(h)
             self.cached_output['y'].append(y)
         x = torch.cat(x)
+        self.monitor.log(f"sparsity x: {l0_sparsity(x):.3f}")
         labels = torch.cat(self.cached_labels)
+        self.accuracy_x = calc_accuracy(labels, x_centroids.predict(x))
+        print(f"accuracy x: {self.accuracy_x:.3f}")
         self.loss_x = compute_loss(x, labels)
-        # self.monitor.clusters_heatmap(xc.get_mean(), title="Embeddings X")
         self._update_cached()
 
     def _epoch_finished(self, loss):
         self.monitor.weights_heatmap(self.model)
+        self.monitor.update_contribution(self.model.weight_contribution())
         self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
         self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())

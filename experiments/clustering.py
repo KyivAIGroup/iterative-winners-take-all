@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import trange
 
 from constants import RESULTS_DIR
-from kwta import iWTA, update_weights, kWTA, kWTA_different_k
+from kwta import iWTA, update_weights, kWTA
 from utils import compute_loss
 
 N_x, N_y, N_h = 100, 200, 200
@@ -24,7 +24,7 @@ xs ^= white_noise
 
 stats = {
     mode: np.zeros((N_REPEATS, N_ITERS), dtype=np.float32)
-    for mode in ('iWTA', 'kWTA', 'kWTA-fixed-k')
+    for mode in ('iWTA', 'kWTA')
 }
 n_active = np.zeros((N_REPEATS, N_ITERS), dtype=np.float32)
 
@@ -49,23 +49,13 @@ for experiment in trange(N_REPEATS):
             update_weights(w_hy, x_pre=h, x_post=y, n_choose=NUM_TO_LEARN)
             update_weights(w_yy, x_pre=y, x_post=y, n_choose=NUM_TO_LEARN)
 
-        y_kwta_pre = y0_batch - w_hy @ h0_batch
         _, y_batch = iWTA(y0=y0_batch, h0=h0_batch, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy)
-        y_kwta_fixed_k = kWTA(y_kwta_pre, k=K_FIXED)
-        n_active_batch = np.count_nonzero(y_batch, axis=0)
-        y_kwta = kWTA_different_k(y_kwta_pre,
-                                  ks=n_active_batch)
-        n_active[experiment, epoch] = n_active_batch.mean()
+        y_kwta = kWTA(y0_batch - w_hy @ kWTA(h0_batch, k=K_FIXED), k=K_FIXED)
+        n_active[experiment, epoch] = np.count_nonzero(y_batch, axis=0).mean()
 
-        stats['iwta'][experiment, epoch] = compute_loss(y_batch.T, labels)
-        stats['kwta'][experiment, epoch] = compute_loss(y_kwta.T, labels)
-        stats['kwta-fixed-k'][experiment, epoch] = compute_loss(y_kwta_fixed_k.T, labels)
+        stats['iWTA'][experiment, epoch] = compute_loss(y_batch.T, labels)
+        stats['kWTA'][experiment, epoch] = compute_loss(y_kwta.T, labels)
 
-colormap = {
-    'iwta': 'green',
-    'kwta': 'blue',
-    'kwta-fixed-k': 'cyan'
-}
 
 fig, ax = plt.subplots()
 
@@ -74,9 +64,9 @@ print(f"n_active={n_active}")
 for key in stats.keys():
     mean = stats[key].mean(axis=0)
     std = stats[key].std(axis=0)
-    ax.plot(range(N_ITERS), mean, lw=2, label=key, color=colormap[key])
+    line = ax.plot(range(N_ITERS), mean, lw=2, label=key)[0]
     ax.fill_between(range(N_ITERS), mean + std, mean - std,
-                    facecolor=colormap[key], alpha=0.3)
+                    facecolor=line.get_color(), alpha=0.3)
 ax.set_title(f"num_to_learn={NUM_TO_LEARN}")
 ax.legend()
 ax.set_xlabel('Epoch')

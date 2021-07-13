@@ -9,6 +9,7 @@ from nn.nn_utils import random_choice, l0_sparsity
 from mighty.utils.var_online import MeanOnline
 
 __all__ = [
+    "ParameterBinary",
     "PermanenceFixedSparsity",
     "PermanenceVaryingSparsity",
     "KWTAFunction",
@@ -17,7 +18,6 @@ __all__ = [
     "IterativeWTA",
     "IterativeWTASoft",
     "IterativeWTAVogels",
-    "update_weights"
 ]
 
 
@@ -27,16 +27,12 @@ def normalize_presynaptic(mat):
     mat /= presum
 
 
-class PermanenceFixedSparsity(nn.Parameter):
-
+class ParameterBinary(nn.Parameter):
     def __new__(cls, data: torch.Tensor, learn=True, **kwargs):
         assert data.unique().tolist() == [0, 1]
-        permanence = data * torch.rand_like(data)
-        normalize_presynaptic(permanence)
-
         param = super().__new__(cls, data, requires_grad=False)
-        param.permanence = permanence if learn else None
         param.learn = learn
+        param.contribution = MeanOnline()
         return param
 
     @property
@@ -44,7 +40,16 @@ class PermanenceFixedSparsity(nn.Parameter):
         return l0_sparsity(self.data)
 
     def reset(self):
-        pass
+        self.contribution.reset()
+
+    def __repr__(self):
+        shape = self.data.shape
+        kind = "[learnable]" if self.learn else "[fixed]"
+        return f"{self.__class__.__name__} {kind} {shape[0]} -> {shape[1]}"
+
+    def update_contribution(self, freq_output: torch.Tensor):
+        overlap = self.mean(dim=0) * freq_output
+        self.contribution.update(overlap)
 
     def update(self, x_pre, x_post, n_choose=1, lr=0.001):
         if not self.learn:
@@ -57,11 +62,30 @@ class PermanenceFixedSparsity(nn.Parameter):
                 return
             if n_choose is None or n_choose >= len(x) * len(y):
                 # full outer product
-                self.permanence[x.unsqueeze(1), y] += lr
+                self._do_update(x.unsqueeze(1), y, lr=lr)
             else:
                 x = random_choice(x, n_choose=n_choose)
                 y = random_choice(y, n_choose=n_choose)
-                self.permanence[x, y] += lr
+                self._do_update(x, y, lr=lr)
+
+    def _do_update(self, x_idx, y_idx, lr):
+        self[x_idx, y_idx] = 1
+
+
+class PermanenceFixedSparsity(ParameterBinary):
+
+    def __new__(cls, data: torch.Tensor, learn=True, **kwargs):
+        param = super().__new__(cls, data, learn=learn)
+        permanence = data * torch.rand_like(data)
+        normalize_presynaptic(permanence)
+        param.permanence = permanence if learn else None
+        return param
+
+    def _do_update(self, x_idx, y_idx, lr):
+        self.permanence[x_idx, y_idx] += lr
+
+    def update(self, x_pre, x_post, n_choose=1, lr=0.001):
+        super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
         self.normalize()
 
     def normalize(self):
@@ -73,11 +97,6 @@ class PermanenceFixedSparsity(nn.Parameter):
         threshold = perm.view(-1).topk(k).values[-1].item()
         self.data[:] = self.permanence > threshold
         return threshold
-
-    def __repr__(self):
-        shape = self.data.shape
-        kind = "[learnable]" if self.learn else "[fixed]"
-        return f"{self.__class__.__name__} {kind} {shape[0]} -> {shape[1]}"
 
 
 class PermanenceVaryingSparsity(PermanenceFixedSparsity):
@@ -93,6 +112,7 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         return param
 
     def reset(self):
+        super().reset()
         self.output_sparsity.reset()
         self.threshold.reset()
 
@@ -193,7 +213,7 @@ class WTAInterface(nn.Module):
 
     def update_weights(self, x, h, y, n_choose=1, lr=0.001):
         def _update_weight(weight, x_pre, x_post):
-            if isinstance(weight, PermanenceFixedSparsity):
+            if isinstance(weight, ParameterBinary):
                 weight.update(x_pre, x_post, n_choose=n_choose, lr=lr)
 
         _update_weight(self.w_xy, x_pre=x, x_post=y)
@@ -227,6 +247,13 @@ class WTAInterface(nn.Module):
                         for name, param in self.named_parameters()
                         if isinstance(param, PermanenceVaryingSparsity)}
         return nonzero_keep
+
+    def weight_contribution(self):
+        # excitatory only
+        contribution = {name: param.contribution.get_mean()
+                        for name, param in self.named_parameters()
+                        if name[-2] != 'h'}
+        return contribution
 
 
 class KWTANet(WTAInterface):
@@ -271,6 +298,8 @@ class IterativeWTA(WTAInterface):
         t_start = int(max(h0.max().item(), y0.max().item()))
         inh_h = 1.0 - self.freq['h'].get_mean()
         inh_y = 1.0 - self.freq['y'].get_mean()
+        # inh_h = torch.exp(-1 * self.freq['h'].get_mean())
+        # inh_y = torch.exp(-1 * self.freq['y'].get_mean())
         for threshold in range(t_start, 0, -1):
             z_h = h0
             if self.w_hh is not None:
@@ -355,7 +384,7 @@ class IterativeWTAVogels(IterativeWTA):
 
     def update_weights(self, x, h, y, n_choose=1, lr=0.001):
         def _update_weight(weight, x_pre, x_post):
-            if isinstance(weight, PermanenceFixedSparsity):
+            if isinstance(weight, ParameterBinary):
                 weight.update(x_pre, x_post, n_choose=n_choose, lr=lr)
 
         # Regular excitatory synapses update
@@ -406,20 +435,3 @@ class IterativeWTASoft(IterativeWTA):
                 z_y = (z_y >= threshold).float()
 
         return z_h, z_y
-
-
-def update_weights(w, x_pre, x_post, n_choose=1):
-    # x_pre and x_post are (trials, N) tensors
-    assert x_pre.shape[0] == x_post.shape[0]
-    for x, y in zip(x_pre, x_post):
-        x = x.nonzero(as_tuple=True)[0]
-        y = y.nonzero(as_tuple=True)[0]
-        if len(x) == 0 or len(y) == 0:
-            return
-        if n_choose is None or n_choose >= len(x) * len(y):
-            # full outer product
-            w[x.unsqueeze(1), y] = 1
-        else:
-            x = random_choice(x, n_choose=n_choose)
-            y = random_choice(y, n_choose=n_choose)
-            w[x, y] = 1
