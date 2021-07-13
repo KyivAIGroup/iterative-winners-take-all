@@ -62,13 +62,13 @@ def l0_sparsity(tensor):
     return tensor.count_nonzero().item() / tensor.nelement()
 
 
-def compute_loss(tensor: torch.Tensor, labels: torch.Tensor):
-    tensor = tensor / tensor.norm(dim=1, keepdim=True)
-    cos = tensor.matmul(tensor.t())
+def compute_loss(output: torch.Tensor, labels: torch.Tensor):
+    output = output / output.norm(dim=1, keepdim=True)
+    cos = output.matmul(output.t())
     loss = []
     labels_unique = labels.unique()
     clustering = len(labels) > len(labels_unique)
-    for label in labels.unique():
+    for label in labels_unique:
         mask_same = labels == label
         cos_other = cos[mask_same][:, ~mask_same]
         cos_other = cos_other.mean().item()
