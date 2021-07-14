@@ -4,6 +4,14 @@ import numpy as np
 from kwta import kWTA
 
 
+__all__ = [
+    "ParameterBinary",
+    "PermanenceFixedSparsity",
+    "PermanenceVogels",
+    "PermanenceVaryingSparsity"
+]
+
+
 def normalize_presynaptic(mat):
     presum = mat.sum(axis=1)[:, np.newaxis]
     presum += 1e-10  # avoid division by zero
