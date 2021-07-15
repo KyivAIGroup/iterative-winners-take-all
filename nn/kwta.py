@@ -326,17 +326,6 @@ class IterativeWTA(WTAInterface):
             h.clamp_max_(1)
             y.clamp_max_(1)
 
-        # TODO the same hack should be for 'h'
-        empty_trials = ~(y.any(dim=1))
-        if empty_trials.any():
-            # This is particularly wrong because y != y_kwta even when k=1
-            warnings.warn("iWTA resulted in a zero vector. "
-                          "Activating one neuron manually.")
-            h_kwta = KWTAFunction.apply(h0, 1)
-            y_kwta = KWTAFunction.apply(y0 - h_kwta @ self.w_hy, 1)
-            h[empty_trials] = h_kwta[empty_trials]
-            y[empty_trials] = y_kwta[empty_trials]
-
         self.freq['h'].update(h.mean(dim=0))
         self.freq['y'].update(y.mean(dim=0))
 
@@ -376,17 +365,6 @@ class IterativeWTAVogels(IterativeWTA):
             y.clamp_max_(1)
 
             self.history.append((z_h, z_y))
-
-        # TODO the same hack should be for 'h'
-        empty_trials = ~(y.any(dim=1))
-        if empty_trials.any():
-            # This is particularly wrong because y != y_kwta even when k=1
-            warnings.warn("iWTA resulted in a zero vector. "
-                          "Activating one neuron manually.")
-            h_kwta = KWTAFunction.apply(h0, 1)
-            y_kwta = KWTAFunction.apply(y0 - h_kwta @ self.w_hy, 1)
-            h[empty_trials] = h_kwta[empty_trials]
-            y[empty_trials] = y_kwta[empty_trials]
 
         return h, y
 

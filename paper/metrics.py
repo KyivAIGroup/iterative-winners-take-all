@@ -3,7 +3,9 @@ import numpy as np
 
 def compute_loss(output, labels):
     assert len(output) == len(labels)
-    output = output / np.linalg.norm(output, axis=1, keepdims=True)
+    norm = np.linalg.norm(output, axis=1, keepdims=True)
+    norm += 1e-10  # add a small value to avoid division by zero
+    output = output / norm
     cosine_similarity = output.dot(output.T)
     loss = []
     labels_unique = np.unique(labels)
@@ -36,7 +38,9 @@ def cluster_centroids(output, labels):
 
 def compute_accuracy(output, labels):
     assert len(output) == len(labels)
-    output = output / np.linalg.norm(output, axis=1, keepdims=True)
+    norm = np.linalg.norm(output, axis=1, keepdims=True)
+    norm += 1e-10  # add a small value to avoid division by zero
+    output = output / norm
     centroids = cluster_centroids(output, labels)
     cosine_similarity = output.dot(centroids.T)
     labels_pred = cosine_similarity.argmax(axis=1)

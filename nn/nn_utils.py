@@ -63,7 +63,9 @@ def l0_sparsity(tensor):
 
 
 def compute_loss(output: torch.Tensor, labels: torch.Tensor):
-    output = output / output.norm(dim=1, keepdim=True)
+    norm = output.norm(dim=1, keepdim=True)
+    norm += 1e-10
+    output = output / norm
     cos = output.matmul(output.t())
     loss = []
     labels_unique = labels.unique()

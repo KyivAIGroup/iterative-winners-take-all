@@ -1,5 +1,4 @@
 import numpy as np
-import warnings
 
 
 def kWTA(x, k):
@@ -12,18 +11,6 @@ def kWTA(x, k):
     sdr = np.zeros_like(x)
     sdr[winners, range(x.shape[1])] = 1
     return sdr.squeeze()
-
-
-def at_least_one_neuron_active(y0, h0, y, h, w_hy):
-    empty_trials = ~(y.any(axis=0))
-    if empty_trials.any():
-        warnings.warn("iWTA resulted in a zero vector. "
-                      "Activating one neuron manually.")
-        h_kwta = kWTA(h0, k=1)
-        y_kwta = kWTA(y0 - w_hy @ h_kwta, k=1)
-        h[:, empty_trials] = h_kwta[:, empty_trials]
-        y[:, empty_trials] = y_kwta[:, empty_trials]
-    return h, y
 
 
 def iWTA(x, w_xh, w_xy, w_hy, w_yy=None, w_hh=None, w_yh=None):
@@ -47,8 +34,6 @@ def iWTA(x, w_xh, w_xy, w_hy, w_yy=None, w_hh=None, w_yh=None):
 
         h |= z_h
         y |= z_y
-
-    h, y = at_least_one_neuron_active(y0, h0, y, h, w_hy)
 
     return h, y
 
@@ -78,8 +63,5 @@ def iWTA_history(x, w_xh, w_xy, w_hy, w_yy=None, w_hh=None, w_yh=None):
         history.append((z_h, z_y))
 
     z_h, z_y = zip(*history)
-    z_h = list(z_h)
-    z_y = list(z_y)
-    z_h[-1], z_y[-1] = at_least_one_neuron_active(y0, h0, z_y[-1], z_h[-1], w_hy)
 
     return z_h, z_y
