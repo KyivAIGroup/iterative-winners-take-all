@@ -153,13 +153,6 @@ class MonitorIWTA(MonitorEmbedding):
                 ylabel='Neuron Input',
                 ytick=False,
             ))
-            continue
-            self.viz.heatmap(param.permanence.flipud(), win=f"{name} perm", opts=dict(
-                title=f"{name} permanence",
-                xlabel='Neuron Output',
-                ylabel='Neuron Input',
-                ytick=False,
-            ))
 
     def update_weight_histogram(self):
         if not self._advanced_monitoring_level & MonitorLevel.WEIGHT_HISTOGRAM:
@@ -219,10 +212,24 @@ class MonitorIWTA(MonitorEmbedding):
             super().update_loss(loss, mode=mode)
 
     def update_contribution(self, contribution: dict):
-        labels, contribution = zip(*contribution.items())
-        contribution = torch.stack(contribution)
-        self.viz.heatmap(contribution, win="contribution", opts=dict(
-            title="Weight contribution",
-            rownames=list(labels),
-            xlabel='Neuron Output',
+        tensormap = defaultdict(list)
+        labelmap = defaultdict(list)
+        for label, vec in contribution.items():
+            size = vec.size(0)
+            tensormap[size].append(vec)
+            labelmap[size].append(label)
+        for size, tensors in tensormap.items():
+            tensors = torch.stack(tensors)
+            self.viz.heatmap(tensors, win=f"contribution {size}", opts=dict(
+                title="Weight contribution",
+                rownames=labelmap[size],
+                xlabel='Neuron Output',
+            ))
+
+    def update_permanences_removed(self, removed: dict):
+        removed = sum(removed.values())
+        self.viz.line_update(y=removed, opts=dict(
+            xlabel='Epoch',
+            ylabel='sum(permanence < thr)',
+            title="Permanences removed count",
         ))

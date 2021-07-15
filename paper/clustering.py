@@ -85,10 +85,10 @@ for network_cls in (NetworkPermanenceVaryingSparsity,
 
     fig, ax = plt.subplots()
     centroids = cluster_centroids(output_prev['y'].T, labels)
-    im = ax.imshow(centroids, aspect='auto', interpolation='none')
+    im = ax.imshow(centroids, aspect='auto', interpolation='none', cmap='binary')
+    plt.colorbar(im)
     ax.set_xlabel("Neuron")
     ax.set_ylabel("Class label")
     ax.set_title("Mean centroids of 'y'")
-    plt.colorbar(im)
     fig.savefig(results_dir / f"centroids {network.name}.png", dpi=300)
     plt.show()

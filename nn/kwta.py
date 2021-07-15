@@ -110,12 +110,14 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         param.output_sparsity_desired = output_sparsity_desired
         param.output_sparsity = MeanOnline()
         param.threshold = MeanOnline()
+        param.permanences_removed = 0
         return param
 
     def reset(self):
         super().reset()
         self.output_sparsity.reset()
         self.threshold.reset()
+        self.permanences_removed = 0
 
     def update_weight_sparsity(self, output_sparsity: float, gamma=0.1):
         sparsity_inc = gamma * 0.95 + (1 - gamma) * self.weight_nonzero_keep
@@ -149,6 +151,7 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         normalize_presynaptic(self.permanence)
         k = math.ceil(self.weight_nonzero_keep * self.nelement())
         threshold = kWTA_threshold(self.permanence.view(-1), k=k)
+        self.permanences_removed += (self.permanence < threshold).sum().item()
         self.permanence[self.permanence < threshold] = 0
         self.data[:] = self.permanence > 0
         self.threshold.update(torch.Tensor([threshold]))
@@ -251,11 +254,14 @@ class WTAInterface(nn.Module):
         return nonzero_keep
 
     def weight_contribution(self):
-        # excitatory only
         contribution = {name: param.contribution.get_mean()
-                        for name, param in self.named_parameters()
-                        if name[-2] != 'h'}
+                        for name, param in self.named_parameters()}
         return contribution
+
+    def permanences_removed(self):
+        removed = {name: param.permanences_removed
+                   for name, param in self.named_parameters()}
+        return removed
 
 
 class KWTANet(WTAInterface):
