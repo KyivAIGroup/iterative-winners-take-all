@@ -10,6 +10,9 @@ N_x = N_y = N_h = 200
 s_x = 0.2
 s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
 
+# A color-blind friendly palette
+colors = ['#00429d', '#93003a']
+
 
 def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
                    n_iters=20, n_choose=10, lr=0.01,
@@ -53,13 +56,16 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     # plt.suptitle(f"{network.name} {experiment_name}")
 
     loss_x = compute_loss(x.T, labels)
-    axes[0].axhline(y=loss_x, xmin=0, xmax=n_iters - 1, ls='--', color='gray', label="input 'x'")
-    for name in ('h', 'y'):
-        line = axes[0].plot(range(n_iters), loss[name], label=f"output '{name}'")[0]
-        axes[1].plot(range(n_iters), convergence[name], color=line.get_color())
+    axes[0].axhline(y=loss_x, xmin=0, xmax=n_iters - 1, ls='--', color='gray', label="input '$x$'")
+    for i, name in enumerate(['h', 'y']):
+        axes[0].plot(range(n_iters), loss[name], label=f"output '${name}$'", color=colors[i])
+        axes[1].plot(range(n_iters), convergence[name], color=colors[i])
+        if np.nanmin(convergence[name]) < 0.05:
+            axes[1].set_ylim(ymin=0.)
         if with_accuracy:
-            axes[2].plot(range(n_iters), accuracy[name], color=line.get_color())
+            axes[2].plot(range(n_iters), accuracy[name], color=colors[i])
     axes[0].legend()
+    axes[-1].set_xlim(xmin=0)
     plt.tight_layout()
 
     results_dir = Path("results") / experiment_name
