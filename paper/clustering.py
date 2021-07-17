@@ -9,7 +9,7 @@ np.random.seed(0)
 N_x = N_y = N_h = 200
 s_x = 0.2
 
-N_ITERS = 50
+N_ITERS = 35
 N_CHOOSE = 10
 LEARNING_RATE = 0.01
 
