@@ -97,8 +97,10 @@ class PermanenceVogels(PermanenceFixedSparsity):
         assert len(x_pre) == len(x_post)
         window_size = (neighbors_coincident + 1)
         n_steps = len(x_pre)
-        lr_potentiation = lr / (n_steps * window_size)
-        lr_depression = -lr / (n_steps * (n_steps - window_size))
+        # multiply by ~10 to be on a similar learning time scale with
+        # other learning rules
+        lr_potentiation = 10 * lr / (n_steps * window_size)
+        lr_depression = -10 * lr / (n_steps * (n_steps - window_size))
         for i, (x, y) in enumerate(zip(x_pre, x_post)):
             for j in range(max(0, i - neighbors_coincident), i + 1):
                 # Potentiation
