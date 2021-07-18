@@ -32,20 +32,20 @@ class NetworkWillshaw:
 
 
 class NetworkKWTA:
-    name = "Classical Willshaw kWTA"
+    name = "kWTA permanence fixed sparsity"
     K_FIXED = 10
 
     def __init__(self, weights: dict):
         self.weights = {}
-        for name in ("w_xy", "w_xh", "w_hy"):
-            self.weights[name] = ParameterBinary(weights[name])
+        self.weights['w_xh'] = PermanenceFixedSparsity(weights['w_xh'])
+        self.weights['w_xy'] = PermanenceFixedSparsity(weights['w_xy'])
+        self.weights['w_hy'] = weights['w_hy']
 
     def train_epoch(self, x, n_choose=10, lr=0.001):
         h = kWTA(self.weights['w_xh'] @ x, k=self.K_FIXED)
         y = kWTA(self.weights['w_xy'] @ x - self.weights['w_hy'] @ h, k=self.K_FIXED)
         self.weights['w_xy'].update(x_pre=x, x_post=y, n_choose=n_choose, lr=lr)
         self.weights['w_xh'].update(x_pre=x, x_post=h, n_choose=n_choose, lr=lr)
-        self.weights['w_hy'].update(x_pre=h, x_post=y, n_choose=n_choose, lr=lr)
         return h, y
 
 
