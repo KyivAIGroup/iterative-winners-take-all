@@ -51,7 +51,7 @@ class PermanenceFixedSparsity(ParameterBinary):
         if data is None:
             return None
         assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
-        mat = np.array(data, dtype=np.int32).view(cls)
+        mat = data.view(cls)
         permanence = data * np.random.random(data.shape)
         normalize_presynaptic(permanence)
         mat.permanence = permanence

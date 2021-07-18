@@ -15,6 +15,8 @@ colors = ['#00429d', '#93003a']
 
 
 def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
+                   architecture=('w_xy', 'w_xh', 'w_hy', 'w_hh', 'w_yh'),
+                   weights_learn=(),
                    n_iters=20, n_choose=10, lr=0.01,
                    with_accuracy=False, experiment_name=''):
     weights = {}
@@ -23,9 +25,14 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     weights['w_hy'] = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
     weights['w_hh'] = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
     weights['w_yh'] = np.random.binomial(1, s_w_yh, size=(N_h, N_y))
-    weights['w_yy'] = None
+    weights['w_yy'] = np.random.binomial(1, s_w_yy, size=(N_y, N_y))
 
-    network = network_cls(weights)
+    for key in weights.keys():
+        if key not in architecture:
+            # remove these connections
+            weights[key] = None
+
+    network = network_cls(weights, weights_learn=weights_learn)
 
     sparsity = dict(y=np.zeros(n_iters), h=np.zeros(n_iters))
     loss = dict(y=np.zeros(n_iters), h=np.zeros(n_iters))
@@ -43,9 +50,8 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
 
     for name in ('h', 'y'):
         print(f"'{name}' final sparsity: {sparsity[name][-1]}")
-    for name, w in weights.items():
-        if w is not None:
-            print(f"{name} final sparsity: {w.mean():.3f}")
+    for name in weights_learn:
+        print(f"{name} final sparsity: {weights[name].mean():.3f}")
 
     fig, axes = plt.subplots(nrows=2 + with_accuracy, sharex=True)
     axes[-1].set_xlabel("Iteration")
@@ -60,11 +66,11 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     for i, name in enumerate(['h', 'y']):
         axes[0].plot(range(n_iters), loss[name], label=f"output '${name}$'", color=colors[i])
         axes[1].plot(range(n_iters), convergence[name], color=colors[i])
-        if np.nanmin(convergence[name]) < 0.05:
-            axes[1].set_ylim(ymin=0.)
         if with_accuracy:
             axes[2].plot(range(n_iters), accuracy[name], color=colors[i])
     axes[0].legend()
+    if min(map(np.nanmin, convergence.values())) < 0.05:
+        axes[1].set_ylim(ymin=0.)
     axes[-1].set_xlim(xmin=0)
     plt.tight_layout()
 
@@ -81,3 +87,5 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     # ax.set_title("Mean centroids of 'y'")
     fig.savefig(results_dir / f"centroids {network.name}.png", dpi=300)
     # plt.show()
+
+    return network

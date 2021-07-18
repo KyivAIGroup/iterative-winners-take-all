@@ -30,5 +30,6 @@ for network_cls in (NetworkPermanenceVaryingSparsity,
                     NetworkPermanenceFixedSparsity,
                     NetworkPermanenceVogels):
     run_experiment(x, labels, network_cls=network_cls,
+                   weights_learn=('w_xy', 'w_xh', 'w_hy', 'w_hh', 'w_yh'),
                    n_iters=N_ITERS, n_choose=N_CHOOSE, lr=LEARNING_RATE,
                    experiment_name="clustering")
