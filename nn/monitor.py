@@ -6,12 +6,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from graph import plot_assemblies
+from nn.graph import plot_assemblies
 from mighty.monitor.accuracy import calc_accuracy
 from mighty.monitor.monitor import MonitorEmbedding, ParamRecord
 from mighty.utils.domain import MonitorLevel
 from mighty.utils.common import clone_cpu
-from nn_utils import PERMANENCE_INSTABILITY
+from utils import PERMANENCE_INSTABILITY
 
 
 class ParamRecordBinary(ParamRecord):

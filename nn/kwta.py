@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import warnings
 import random
 
-from nn.nn_utils import random_choice, l0_sparsity
+from nn.utils import random_choice, l0_sparsity
 from mighty.utils.var_online import MeanOnline
 
 __all__ = [

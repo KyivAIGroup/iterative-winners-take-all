@@ -14,7 +14,7 @@ from mighty.utils.common import set_seed
 from mighty.utils.data import DataLoader
 from mighty.utils.domain import MonitorLevel
 from nn.kwta import *
-from nn.nn_utils import sample_bernoulli, NoShuffleLoader, l0_sparsity
+from nn.utils import sample_bernoulli, NoShuffleLoader, l0_sparsity
 from nn.trainer import TrainerIWTA
 
 set_seed(0)

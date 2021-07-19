@@ -10,7 +10,7 @@ from mighty.utils.data import DataLoader
 from mighty.utils.domain import MonitorLevel
 from mighty.utils.var_online import MeanOnline, MeanOnlineLabels
 from nn.kwta import *
-from nn.nn_utils import l0_sparsity, sample_bernoulli
+from nn.utils import l0_sparsity, sample_bernoulli
 from nn.trainer import TrainerIWTA
 
 set_seed(0)

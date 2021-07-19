@@ -13,7 +13,7 @@ from mighty.utils.data import DataLoader
 from mighty.utils.domain import MonitorLevel
 from nn.kwta import *
 from nn.trainer import TrainerIWTA
-from nn.nn_utils import sample_bernoulli, NoShuffleLoader
+from nn.utils import sample_bernoulli, NoShuffleLoader
 
 set_seed(0)
 

@@ -3,7 +3,7 @@ import torch
 import unittest
 from numpy.testing import assert_array_equal
 
-from kwta import kWTA, iWTA, kWTA_different_k
+from kwta import kWTA, iWTA
 from nn.kwta import KWTAFunction, IterativeWTA
 
 
@@ -38,10 +38,9 @@ class TestKWTA(unittest.TestCase):
         y1 = kWTA(x, k=k)
         y1_tensor = KWTAFunction.apply(torch.from_numpy(x.T), k).T
         assert_array_equal(y1, y1_tensor)
-        ks = np.full(n_samples, fill_value=k, dtype=int)
-        y2 = kWTA_different_k(x, ks=ks)
-        y2_tensor = KWTAFunction.apply(torch.from_numpy(x.T), torch.from_numpy(ks)).T
-        assert_array_equal(y1, y2)
+        y2 = [kWTA(vec, k) for vec in x.T]
+        y2_tensor = KWTAFunction.apply(torch.from_numpy(x.T), torch.full((n_samples,), fill_value=k))
+        assert_array_equal(y1.T, y2)
         assert_array_equal(y2, y2_tensor)
 
     def test_kwtai_tensor(self):
@@ -49,14 +48,12 @@ class TestKWTA(unittest.TestCase):
         x = np.random.binomial(1, p=0.5, size=(n_neurons, n_samples)).astype(np.int32)
         w_xy = np.random.binomial(1, p=0.1, size=(n_neurons, n_neurons)).astype(np.int32)
         w_xh = np.random.binomial(1, p=0.1, size=(n_neurons, n_neurons)).astype(np.int32)
-        y0 = w_xy @ x
-        h0 = w_xh @ x
         w_lat = np.random.binomial(1, p=0.1, size=(n_neurons, n_neurons)).astype(np.int32)
-        iwta = IterativeWTA(w_xy=torch.from_numpy(w_xy.T),
-                            w_xh=torch.from_numpy(w_xh.T),
-                            w_hy=torch.from_numpy(w_lat.T))
-        h_array, y_array = iWTA(y0=y0, h0=h0, w_hy=w_lat)
-        h_tensor, y_tensor = iwta(torch.from_numpy(x.T))
+        iwta = IterativeWTA(w_xy=torch.from_numpy(w_xy.T).float(),
+                            w_xh=torch.from_numpy(w_xh.T).float(),
+                            w_hy=torch.from_numpy(w_lat.T).float())
+        h_array, y_array = iWTA(x, w_xh, w_xy, w_hy=w_lat)
+        h_tensor, y_tensor = iwta(torch.from_numpy(x.T).float())
         assert_array_equal(h_array, h_tensor.T)
         assert_array_equal(y_array, y_tensor.T)
         self.assertEqual(y_array.shape, (n_neurons, n_samples))
@@ -65,21 +62,9 @@ class TestKWTA(unittest.TestCase):
         h1d = np.zeros_like(h_array)
         y1d = np.zeros_like(y_array)
         for i in range(n_samples):
-            h1d[:, i], y1d[:, i] = iWTA(y0=y0[:, i], h0=h0[:, i], w_hy=w_lat)
+            h1d[:, i], y1d[:, i] = iWTA(x[:, i], w_xh, w_xy, w_hy=w_lat)
         assert_array_equal(h_array, h1d)
         assert_array_equal(y_array, y1d)
-
-    def test_kwtai_differs(self):
-        y0 = np.array([0, 1, 0, 0, 0])
-        h0 = np.array([0, 0, 1, 0, 0])
-        w_hy = [[0, 0, 0, 0, 1],
-                [1, 0, 1, 0, 0],
-                [0, 1, 0, 0, 0],
-                [1, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0]]
-        h, y = iWTA(y0=y0, h0=h0, w_hy=w_hy)
-        y_kwta = kWTA(y0 - w_hy @ h0, k=1)
-        print(f"{y=}, {y_kwta=}")
 
 
 if __name__ == '__main__':

@@ -11,7 +11,7 @@ from mighty.utils.stub import OptimizerStub
 from mighty.utils.var_online import MeanOnlineLabels
 from nn.kwta import WTAInterface, IterativeWTASoft
 from nn.monitor import MonitorIWTA
-from nn.nn_utils import compute_loss, l0_sparsity
+from nn.utils import compute_loss, l0_sparsity
 from mighty.monitor.accuracy import calc_accuracy, AccuracyEmbedding
 
 
@@ -112,8 +112,8 @@ class TrainerIWTA(TrainerEmbedding):
         self.cached_output.clear()
         self.cached_labels.clear()
         if self.timer.epoch == self.timer.n_epochs:
-            print(f"{convergence=}")
-            print(f"{sparsity=}")
+            print(f"convergence={convergence}")
+            print(f"sparsity={sparsity}")
 
     def training_started(self):
         # self.monitor.weights_heatmap(self.model)

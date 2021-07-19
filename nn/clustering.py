@@ -8,7 +8,7 @@ from mighty.utils.common import set_seed
 from mighty.utils.data import DataLoader
 from mighty.utils.domain import MonitorLevel
 from nn.kwta import *
-from nn.nn_utils import NoShuffleLoader, sample_bernoulli, DataLoaderSequential
+from nn.utils import NoShuffleLoader, sample_bernoulli, DataLoaderSequential
 from nn.trainer import TrainerIWTA
 from mighty.utils.stub import CriterionStub
 
