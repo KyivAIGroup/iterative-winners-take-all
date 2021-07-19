@@ -91,14 +91,14 @@ def plot_w(weight, s='y'):
     if s == 'y':
         s_y_mean = np.mean(s_y, axis=1)
         s_y_std = np.std(s_y, axis=1)
-        ax.plot(w_range / N, s_y_mean, label='w_' + weight)
+        ax.plot(w_range / N, s_y_mean, label='w$^{%s}$' % weight[2:])
         ax.fill_between(w_range / N, s_y_mean + s_y_std, s_y_mean - s_y_std,
                         alpha=0.5)
 
     if s == 'h':
         s_h_mean = np.mean(s_h, axis=1)
         s_h_std = np.std(s_h, axis=1)
-        ax.plot(w_range / N, s_h_mean, label='w_' + weight)
+        ax.plot(w_range / N, s_h_mean, label='w$^{%s}$' % weight[2:])
         ax.fill_between(w_range / N, s_h_mean + s_h_std, s_h_mean - s_h_std,
                         alpha=0.5)
     # return to default
