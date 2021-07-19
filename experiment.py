@@ -19,6 +19,38 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
                    weights_learn=(),
                    n_iters=20, n_choose=10, lr=0.01,
                    with_accuracy=False, experiment_name=''):
+    """
+    Run the experiment.
+
+    Parameters
+    ----------
+    x : (N, S) np.ndarray
+        Input samples.
+    labels : (S,) np.ndarray
+        Sample labels (class ids).
+    network_cls : type
+        The class of a network to use.
+    architecture : list of str
+        A list of the connections present in the network.
+    weights_learn : list of str
+        A list of the connections to learn.
+    n_iters : int
+        The number of iterations to perform.
+    n_choose : int
+        The number of non-zero values to choose to update from the pre- and
+        post- outer products.
+    lr : float
+        The learning rate
+    with_accuracy : bool
+        If True, plot the model accuracy.
+    experiment_name : str
+        The experiment name.
+
+    Returns
+    -------
+    network
+        The trained network.
+    """
     weights = {}
     weights['w_xy'] = np.random.binomial(1, s_w_xy, size=(N_y, N_x))
     weights['w_xh'] = np.random.binomial(1, s_w_xh, size=(N_h, N_x))

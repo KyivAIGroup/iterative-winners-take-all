@@ -1,3 +1,9 @@
+"""
+Decorrelation experiment shows that the initial overlap in input data 'x'
+is decreased due to the w_hy weights that inhibit the overlapped area strongly
+than non-overlapped areas.
+"""
+
 import numpy as np
 
 from experiment import run_experiment
@@ -15,7 +21,24 @@ LEARNING_RATE = 0.01
 
 
 def generate_similar_input(x, n_generate, overlap=0.5):
-    # Generate n_generate vectors with the same num. of active units.
+    """
+    Generate `n_generate` vectors with the same size and the number of active
+    neurons in `x`. The overlap defines the similarity.
+
+    Parameters
+    ----------
+    x : (N,) np.ndarray
+        The input vector
+    n_generate : int
+        The number of similar vectors to generate.
+    overlap : float
+        How much the output vectors are similar to `x`.
+
+    Returns
+    -------
+    x_similar : (N, n_generate) np.ndarray
+        Random vectors that are similar to `x`.
+    """
     idx_pool = x.nonzero()[0]
     no_overlap_idx = (x == 0).nonzero()[0]
     k = len(idx_pool)
@@ -28,7 +51,7 @@ def generate_similar_input(x, n_generate, overlap=0.5):
         active = np.append(active, active_no_overlap)
         x_similar[active, i] = 1
     assert (x_similar.sum(axis=0) == k).all()
-    return x_similar  # (N, n_generate)
+    return x_similar
 
 
 x = np.random.binomial(1, s_x, size=N_x)

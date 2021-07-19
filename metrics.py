@@ -1,7 +1,25 @@
+"""
+Metrics, used in the paper.
+"""
 import numpy as np
 
 
 def compute_loss(output, labels):
+    """
+    Compute the loss function.
+
+    Parameters
+    ----------
+    output : (S, N) np.ndarray
+        A sample-by-neurons transposed output activations.
+    labels : (S,) np.ndarray
+        Sample class labels (ids).
+
+    Returns
+    -------
+    loss : float
+        The loss.
+    """
     assert len(output) == len(labels)
     norm = np.linalg.norm(output, axis=1, keepdims=True)
     norm += 1e-10  # add a small value to avoid division by zero
@@ -37,6 +55,28 @@ def cluster_centroids(output, labels):
 
 
 def compute_accuracy(output, labels):
+    """
+    Compute the accuracy by checking the predicted labels with the true
+    `labels`. The predicted label `l` of a sample :math:`x` is computed as
+
+    .. math::
+        l = \argmin_i \cos(x, x_c^i)
+
+    where :math:`\cos` is the cosine similarity between two vectors and
+    :math:`x_c^i` is the mean output vector (centroid) for the class `i`.
+
+    Parameters
+    ----------
+    output : (S, N) np.ndarray
+        A sample-by-neurons transposed output activations.
+    labels : (S,) np.ndarray
+        Sample class labels (ids).
+
+    Returns
+    -------
+    accuracy : float
+        The accuracy.
+    """
     assert len(output) == len(labels)
     norm = np.linalg.norm(output, axis=1, keepdims=True)
     norm += 1e-10  # add a small value to avoid division by zero
@@ -49,6 +89,22 @@ def compute_accuracy(output, labels):
 
 
 def compute_convergence(output, output_prev):
+    """
+    Compute the convergence by comparing with the output from the previous
+    iteration.
+
+    The convergence is measured as the mean of a XOR operation on two vectors.
+
+    Parameters
+    ----------
+    output, output_prev : np.ndarray
+        Current and previous iteration binary outputs.
+
+    Returns
+    -------
+    float
+        The model convergence between 0 (fully converged) and 1 (fully chaotic)
+    """
     if output is None or output_prev is None:
         return None
     return (output ^ output_prev).mean()

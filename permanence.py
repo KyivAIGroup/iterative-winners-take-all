@@ -1,3 +1,11 @@
+"""
+Learning rules implementation:
+  1. Classical Willshaw associative memory.
+  2. Permanence with fixed sparsity.
+  3. Permanence updates by Vogels.
+  4. Permanence with varying sparsity.
+"""
+
 import math
 import numpy as np
 
@@ -13,22 +21,59 @@ __all__ = [
 
 
 def normalize_presynaptic(mat):
+    """
+    Normalize the presynpatic sum to have a unit norm for each input neuron
+    individually.
+
+    Parameters
+    ----------
+    mat : np.ndarray
+        Real-valued connection weights (permanences).
+    """
     presum = mat.sum(axis=1)[:, np.newaxis]
     presum += 1e-10  # avoid division by zero
     mat /= presum
 
 
 class ParameterBinary(np.ndarray):
+    """
+    A weight matrix with classical Willshaw associative memory learning rule:
+
+    w_ij = 1, if y_i = 1 and x_j = 1.
+    """
 
     def __new__(cls, data, **kwargs):
+        """
+        Convert a numpy array to the ParameterBinary instance.
+
+        Parameters
+        ----------
+        data : (N_output, N_input) np.ndarray
+            Initial binary connections weights.
+        """
         if data is None:
             return None
         assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
         mat = np.array(data, dtype=np.int32).view(cls)
         return mat
 
-    def update(self, x_pre, x_post, n_choose=1, **kwargs):
-        # x_pre and x_post are (N, trials) tensors
+    def update(self, x_pre, x_post, n_choose=10, **kwargs):
+        """
+        Update the connections weights from the pre- and post-synaptic
+        activations.
+
+        Parameters
+        ----------
+        x_pre, x_post : np.ndarray
+            Pre- and post-synaptic activations. It's a 2D array, the first
+            axis is neurons, and the second is the sample (trial) ID. The
+            dimensionality of the fist axis can differ for the pre- and post-
+            synaptic vectors.
+        n_choose : int, optional
+            Non-zero values to choose to update from the pre- and post- outer
+            products.
+            Default: 10
+        """
         assert x_pre.shape[1] == x_post.shape[1], "Batch size mismatch"
         for x, y in zip(x_pre.T, x_post.T):
             x = x.nonzero()[0]
@@ -46,8 +91,21 @@ class ParameterBinary(np.ndarray):
 
 
 class PermanenceFixedSparsity(ParameterBinary):
+    """
+    A weight matrix with permanence with fixed sparsity learning rule.
+    The binary weights sparsity is kept fixed and equal to the initial sparsity
+    throughout learning.
+    """
 
     def __new__(cls, data, **kwargs):
+        """
+        Convert a numpy array to the PermanenceFixedSparsity instance.
+
+        Parameters
+        ----------
+        data : (N_output, N_input) np.ndarray
+            Initial binary connections weights.
+        """
         if data is None:
             return None
         assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
@@ -62,12 +120,46 @@ class PermanenceFixedSparsity(ParameterBinary):
 
     @staticmethod
     def kWTA_threshold(vec, k):
+        """
+        Find a kWA threshold, given k.
+
+        Parameters
+        ----------
+        vec : (N,) np.ndarray
+            A vector.
+        k : int
+            The number of active neurons in the output vector.
+
+        Returns
+        -------
+        thr : float
+            The kWTA threshold.
+        """
         vec_nonzero = np.sort(vec[vec > 0])
         k = min(k, len(vec_nonzero))
         thr = vec_nonzero[-k]
         return thr
 
-    def update(self, x_pre, x_post, n_choose=1, lr=0.001):
+    def update(self, x_pre, x_post, n_choose=10, lr=0.001):
+        """
+        Update the connections weights from the pre- and post-synaptic
+        activations.
+
+        Parameters
+        ----------
+        x_pre, x_post : np.ndarray
+            Pre- and post-synaptic activations. It's a 2D array, the first
+            axis is neurons, and the second is the sample (trial) ID. The
+            dimensionality of the fist axis can differ for the pre- and post-
+            synaptic vectors.
+        n_choose : int, optional
+            Non-zero values to choose to update from the pre- and post- outer
+            products.
+            Default: 10
+        lr : float, optional
+            The learning rate.
+            Default: 0.001
+        """
         assert x_pre.shape[1] == x_post.shape[1], "Batch size mismatch"
         for x, y in zip(x_pre.T, x_post.T):
             x = x.nonzero()[0]
@@ -85,15 +177,44 @@ class PermanenceFixedSparsity(ParameterBinary):
         self.normalize()
 
     def normalize(self):
+        """
+        Normalize the permanence and binary weights matrices.
+        """
         normalize_presynaptic(self.permanence)
         data = kWTA(self.permanence.reshape(-1), k=self.sum())
         self[:] = data.reshape(self.shape)
 
 
 class PermanenceVogels(PermanenceFixedSparsity):
+    """
+    An inhibitory weight matrix with permanence and update rule by Vogels.
+    """
 
-    def update(self, x_pre, x_post, n_choose=1, lr=0.001,
+    def update(self, x_pre, x_post, n_choose=10, lr=0.001,
                neighbors_coincident=1):
+        """
+        Update the connections weights from the pre- and post-synaptic
+        activations.
+
+        Parameters
+        ----------
+        x_pre, x_post : np.ndarray
+            Pre- and post-synaptic activations. It's a 2D array, the first
+            axis is neurons, and the second is the sample (trial) ID. The
+            dimensionality of the fist axis can differ for the pre- and post-
+            synaptic vectors.
+        n_choose : int, optional
+            Non-zero values to choose to update from the pre- and post- outer
+            products.
+            Default: 10
+        lr : float, optional
+            The learning rate.
+            Default: 0.001
+        neighbors_coincident : int, optional
+            The number of coincident steps (subiterations of an iWTA model)
+            to potentiate in a window fashion.
+            Default: 1
+        """
         assert len(x_pre) == len(x_post)
         window_size = (neighbors_coincident + 1)
         n_steps = len(x_pre)
@@ -119,39 +240,97 @@ class PermanenceVogels(PermanenceFixedSparsity):
         pass
 
     def normalize_vogels(self):
+        """
+        Normalize the permanence and binary weights matrices.
+        """
         self.permanence.clip(min=0, out=self.permanence)
         super().normalize()
 
 
 class PermanenceVaryingSparsity(PermanenceFixedSparsity):
+    """
+    A weight matrix with permanence with varying sparsity learning rule.
+    The binary weights sparsity vary throughout learning.
+    """
 
     def __new__(cls, data, excitatory: bool,
                 output_sparsity_desired=(0.025, 0.1)):
+        """
+        Convert a numpy array to the PermanenceVaryingSparsity instance.
+
+        Parameters
+        ----------
+        data : (N_output, N_input) np.ndarray
+            Initial binary connections weights.
+        excitatory : bool
+            Whether the connections are excitatory (True) or inhibitory (False)
+        output_sparsity_desired : tuple of float
+            The desired output sparsity range.
+            Default: (0.025, 0.1)
+        """
         if data is None:
             return None
         mat = super().__new__(cls, data)
         mat.excitatory = excitatory
         mat.output_sparsity_desired = output_sparsity_desired
-        mat.weight_nonzero_keep = np.random.random()
+        mat.weight_nonzero_keep = np.random.random()  # k_w
         return mat
 
     def update_weight_sparsity(self, output_sparsity: float, gamma=0.1):
-        sparsity_inc = gamma * 0.95 + (1 - gamma) * self.weight_nonzero_keep
-        sparsity_dec = gamma * 0.05 + (1 - gamma) * self.weight_nonzero_keep
-        sparsity = self.weight_nonzero_keep
+        """
+        Update the k_w.
+
+        Parameters
+        ----------
+        output_sparsity : float
+            The output population sparsity.
+        gamma : float, optional
+            The update speed.
+            Default: 0.1
+
+        Returns
+        -------
+        k_w : float
+            A new value for k_w.
+        """
+        k_inc = gamma * 0.95 + (1 - gamma) * self.weight_nonzero_keep
+        k_dec = gamma * 0.05 + (1 - gamma) * self.weight_nonzero_keep
+        k_w = self.weight_nonzero_keep
         s_min, s_max = self.output_sparsity_desired
         if output_sparsity > s_max:
-            sparsity = sparsity_dec if self.excitatory else sparsity_inc
+            k_w = k_dec if self.excitatory else k_inc
         elif output_sparsity < s_min:
-            sparsity = sparsity_inc if self.excitatory else sparsity_dec
-        return sparsity
+            k_w = k_inc if self.excitatory else k_dec
+        return k_w
 
-    def update(self, x_pre, x_post, n_choose=1, lr=0.001):
+    def update(self, x_pre, x_post, n_choose=10, lr=0.001):
+        """
+        Update the connections weights from the pre- and post-synaptic
+        activations.
+
+        Parameters
+        ----------
+        x_pre, x_post : np.ndarray
+            Pre- and post-synaptic activations. It's a 2D array, the first
+            axis is neurons, and the second is the sample (trial) ID. The
+            dimensionality of the fist axis can differ for the pre- and post-
+            synaptic vectors.
+        n_choose : int, optional
+            Non-zero values to choose to update from the pre- and post- outer
+            products.
+            Default: 10
+        lr : float, optional
+            The learning rate.
+            Default: 0.001
+        """
         output_sparsity = np.count_nonzero(x_post) / x_post.size
         self.weight_nonzero_keep = self.update_weight_sparsity(output_sparsity)
         super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
 
     def normalize(self):
+        """
+        Normalize the permanence and binary weights matrices.
+        """
         normalize_presynaptic(self.permanence)
         k = math.ceil(self.weight_nonzero_keep * self.size)
         threshold = self.kWTA_threshold(self.permanence.reshape(-1), k=k)

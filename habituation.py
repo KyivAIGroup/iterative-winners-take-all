@@ -1,3 +1,8 @@
+"""
+Habituation experiment shows that the output sparsity encodes information
+about the input data distribution (frequency of encountering).
+"""
+
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,6 +26,21 @@ N_SAMPLES_TOTAL = 30
 
 
 def generate_k_active(n, k):
+    """
+    Sample a random binary vector of size `n` with exactly `k` ones.
+
+    Parameters
+    ----------
+    n : int
+        The size of a vector.
+    k : int
+        The number of non-zero values.
+
+    Returns
+    -------
+    x : (n,) np.ndarray
+        A binary vector.
+    """
     x = np.zeros(n, dtype=np.int32)
     active = np.random.choice(n, size=k, replace=False)
     x[active] = 1
@@ -28,6 +48,27 @@ def generate_k_active(n, k):
 
 
 def sample_from_distribution(px, n_neurons, n_samples, k):
+    """
+    Sample `n_samples` vectors of size `n_neurons` from the `px` distribution.
+    Each binary vector has exactly `k` ones.
+
+    Parameters
+    ----------
+    px : list
+        The probability of encountering specific `x_i` stimulus from a set
+        of input stimuli.
+    n_neurons : int
+        The vector size.
+    n_samples : int
+        The number of samples to generate.
+    k : int
+        The number of non-zero entries in a vector.
+
+    Returns
+    -------
+    x : (n_neurons, n_samples) np.ndarray
+        Data samples with duplicate vectors.
+    """
     px = np.array(px)
     assert np.isclose(px.sum(), 1), "Probabilities must sum up to 1"
     x = np.array([generate_k_active(n_neurons, k) for pxi in px])
