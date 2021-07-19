@@ -246,7 +246,8 @@ class WTAInterface(nn.Module):
 
     def weight_sparsity(self):
         sparsity = {name: param.sparsity
-                    for name, param in self.named_parameters()}
+                    for name, param in self.named_parameters()
+                    if isinstance(param, ParameterBinary)}
         return sparsity
 
     def weight_nonzero_keep(self):
@@ -257,12 +258,14 @@ class WTAInterface(nn.Module):
 
     def weight_contribution(self):
         contribution = {name: param.contribution.get_mean()
-                        for name, param in self.named_parameters()}
+                        for name, param in self.named_parameters()
+                        if isinstance(param, ParameterBinary)}
         return contribution
 
     def permanences_removed(self):
         removed = {name: param.permanences_removed
-                   for name, param in self.named_parameters()}
+                   for name, param in self.named_parameters()
+                   if isinstance(param, PermanenceVaryingSparsity)}
         return removed
 
 
@@ -278,6 +281,7 @@ class KWTANet(WTAInterface):
         if ky is None:
             ky = self.ky
         x = torch.atleast_2d(x)
+        x = x.flatten(start_dim=1)
         y0 = x @ self.w_xy
         h = KWTAFunction.apply(x @ self.w_xh, self.kh)
         y = KWTAFunction.apply(y0 - h @ self.w_hy, ky)
