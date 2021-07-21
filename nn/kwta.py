@@ -77,7 +77,7 @@ class PermanenceFixedSparsity(ParameterBinary):
 
     def __new__(cls, data: torch.Tensor, learn=True, **kwargs):
         param = super().__new__(cls, data, learn=learn)
-        permanence = data * torch.rand_like(data)
+        permanence = torch.rand_like(data)
         normalize_presynaptic(permanence)
         param.permanence = permanence if learn else None
         return param
@@ -93,10 +93,11 @@ class PermanenceFixedSparsity(ParameterBinary):
         if not self.learn:
             return None
         normalize_presynaptic(self.permanence)
-        perm = self.permanence.view(-1)
-        k = self.count_nonzero()
-        threshold = perm.view(-1).topk(k).values[-1].item()
-        self.data[:] = self.permanence > threshold
+        k = math.ceil(self.count_nonzero() / self.size(1))
+        topk = self.permanence.topk(k, dim=0)
+        self.data.zero_()
+        self.data[topk.indices, torch.arange(self.size(1)).unsqueeze(0)] = 1
+        threshold = topk.values[-1].mean().item()
         return threshold
 
 
@@ -106,7 +107,7 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
                 output_sparsity_desired=(0.025, 0.1)):
         param = super().__new__(cls, data, learn=learn)
         param.excitatory = excitatory
-        param.weight_nonzero_keep = random.random() if learn else None
+        param.k_w = random.random() if learn else None
         param.output_sparsity_desired = output_sparsity_desired
         param.output_sparsity = MeanOnline()
         param.threshold = MeanOnline()
@@ -119,16 +120,16 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         self.threshold.reset()
         self.permanences_removed = 0
 
-    def update_weight_sparsity(self, output_sparsity: float, gamma=0.1):
-        sparsity_inc = gamma * 0.95 + (1 - gamma) * self.weight_nonzero_keep
-        sparsity_dec = gamma * 0.05 + (1 - gamma) * self.weight_nonzero_keep
-        sparsity = self.weight_nonzero_keep
+    def update_k_w(self, output_sparsity: float, gamma=0.1):
+        k_inc = min(0.95, self.k_w * (1 + gamma))
+        k_dec = max(0.05, self.k_w * (1 - gamma))
+        k_w = self.k_w
         s_min, s_max = self.output_sparsity_desired
         if output_sparsity > s_max:
-            sparsity = sparsity_dec if self.excitatory else sparsity_inc
+            k_w = k_dec if self.excitatory else k_inc
         elif output_sparsity < s_min:
-            sparsity = sparsity_inc if self.excitatory else sparsity_dec
-        return sparsity
+            k_w = k_inc if self.excitatory else k_dec
+        return k_w
 
     def update(self, x_pre, x_post, n_choose=1, lr=0.001):
         if not self.learn:
@@ -136,26 +137,27 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
             return
         self.output_sparsity.update(torch.Tensor([l0_sparsity(x_post)]))
         output_sparsity = self.output_sparsity.get_mean().item()
-        self.weight_nonzero_keep = self.update_weight_sparsity(output_sparsity)
+        self.k_w = self.update_k_w(output_sparsity)
         super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
 
     def normalize(self):
-        def kWTA_threshold(vec, k):
-            vec_nonzero = vec[vec > 0]
-            k = min(k, len(vec_nonzero))
-            thr = vec_nonzero.topk(k).values[-1].item()
-            return thr
-
         if not self.learn:
             return None
         normalize_presynaptic(self.permanence)
-        k = math.ceil(self.weight_nonzero_keep * self.nelement())
-        threshold = kWTA_threshold(self.permanence.view(-1), k=k)
+        k = math.ceil(self.k_w * self.nelement() / self.size(1))
+        topk = self.permanence.topk(k, dim=0)
+        threshold = topk.values[-1]
+        if 0:
+            self.data.zero_()
+            self.data[topk.indices, torch.arange(self.size(1)).unsqueeze(0)] = 1
+            self.permanence *= self.data  # data serves as a mask
+        else:
+            self.permanence[self.permanence < threshold] = 0
+            self.data[:] = self.permanence > 0
         self.permanences_removed += (self.permanence < threshold).sum().item()
-        self.permanence[self.permanence < threshold] = 0
-        self.data[:] = self.permanence > 0
-        self.threshold.update(torch.Tensor([threshold]))
-        return threshold
+        threshold = threshold.mean()
+        self.threshold.update(threshold)
+        return threshold.item()
 
 
 class PermanenceVogels(PermanenceFixedSparsity):
@@ -250,8 +252,8 @@ class WTAInterface(nn.Module):
                     if isinstance(param, ParameterBinary)}
         return sparsity
 
-    def weight_nonzero_keep(self):
-        nonzero_keep = {name: param.weight_nonzero_keep
+    def k_w(self):
+        nonzero_keep = {name: param.k_w
                         for name, param in self.named_parameters()
                         if isinstance(param, PermanenceVaryingSparsity)}
         return nonzero_keep

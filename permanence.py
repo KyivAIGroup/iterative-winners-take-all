@@ -110,35 +110,13 @@ class PermanenceFixedSparsity(ParameterBinary):
             return None
         assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
         mat = data.view(cls)
-        permanence = data * np.random.random(data.shape)
+        permanence = np.random.random(data.shape)
         normalize_presynaptic(permanence)
         mat.permanence = permanence
         return mat
 
     def __array_finalize__(self, obj):
         self.permanence = getattr(obj, 'permanence', None)
-
-    @staticmethod
-    def kWTA_threshold(vec, k):
-        """
-        Find a kWA threshold, given k.
-
-        Parameters
-        ----------
-        vec : (N,) np.ndarray
-            A vector.
-        k : int
-            The number of active neurons in the output vector.
-
-        Returns
-        -------
-        thr : float
-            The kWTA threshold.
-        """
-        vec_nonzero = np.sort(vec[vec > 0])
-        k = min(k, len(vec_nonzero))
-        thr = vec_nonzero[-k]
-        return thr
 
     def update(self, x_pre, x_post, n_choose=10, lr=0.001):
         """
@@ -181,8 +159,11 @@ class PermanenceFixedSparsity(ParameterBinary):
         Normalize the permanence and binary weights matrices.
         """
         normalize_presynaptic(self.permanence)
-        data = kWTA(self.permanence.reshape(-1), k=self.sum())
-        self[:] = data.reshape(self.shape)
+        # each output neuron will have 'k' synapses to input neurons
+        k = math.ceil(self.sum() / self.shape[0])
+        winners = np.argsort(self.permanence, axis=1)[:, -k:]  # (N_out, k)
+        self.fill(0)
+        self[np.arange(self.shape[0])[:, np.newaxis], winners] = 1
 
 
 class PermanenceVogels(PermanenceFixedSparsity):
@@ -273,10 +254,10 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         mat = super().__new__(cls, data)
         mat.excitatory = excitatory
         mat.output_sparsity_desired = output_sparsity_desired
-        mat.weight_nonzero_keep = np.random.random()  # k_w
+        mat.k_w = np.random.random()  # target weight sparsity
         return mat
 
-    def update_weight_sparsity(self, output_sparsity: float, gamma=0.1):
+    def update_k_w(self, output_sparsity: float, gamma=0.1):
         """
         Update the k_w.
 
@@ -293,9 +274,9 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         k_w : float
             A new value for k_w.
         """
-        k_inc = gamma * 0.95 + (1 - gamma) * self.weight_nonzero_keep
-        k_dec = gamma * 0.05 + (1 - gamma) * self.weight_nonzero_keep
-        k_w = self.weight_nonzero_keep
+        k_inc = min(0.95, self.k_w * (1 + gamma))
+        k_dec = max(0.05, self.k_w * (1 - gamma))
+        k_w = self.k_w
         s_min, s_max = self.output_sparsity_desired
         if output_sparsity > s_max:
             k_w = k_dec if self.excitatory else k_inc
@@ -324,7 +305,7 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
             Default: 0.001
         """
         output_sparsity = np.count_nonzero(x_post) / x_post.size
-        self.weight_nonzero_keep = self.update_weight_sparsity(output_sparsity)
+        self.k_w = self.update_k_w(output_sparsity)
         super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
 
     def normalize(self):
@@ -332,7 +313,9 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         Normalize the permanence and binary weights matrices.
         """
         normalize_presynaptic(self.permanence)
-        k = math.ceil(self.weight_nonzero_keep * self.size)
-        threshold = self.kWTA_threshold(self.permanence.reshape(-1), k=k)
-        self.permanence[self.permanence < threshold] = 0
-        self[:] = self.permanence > 0
+        # each output neuron will have 'k' synapses to input neurons
+        k = math.ceil(self.k_w * self.size / self.shape[0])
+        winners = np.argsort(self.permanence, axis=1)[:, -k:]  # (N_out, k)
+        self.fill(0)
+        self[np.arange(self.shape[0])[:, np.newaxis], winners] = 1
+        self.permanence *= self.data

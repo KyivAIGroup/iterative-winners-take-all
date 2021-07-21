@@ -38,7 +38,7 @@ class TrainerIWTAMnist(TrainerIWTA):
         self.monitor.update_contribution(self.model.weight_contribution())
         self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
-        self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
+        self.monitor.update_k_w(self.model.k_w())
         self.monitor.update_sparsity(self.online['sparsity'].get_mean().item(), mode='y')
         self.monitor.update_sparsity(self.online['sparsity-h'].get_mean().item(), mode='h')
         self.monitor.clusters_heatmap(self.online['clusters'].get_mean(), title="Embeddings 'y'")
@@ -71,7 +71,7 @@ class TrainerIWTAMnist(TrainerIWTA):
             self.monitor.update_contribution(self.model.weight_contribution())
             self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())
             self.monitor.update_weight_sparsity(self.model.weight_sparsity())
-            self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
+            self.monitor.update_k_w(self.model.k_w())
             self.monitor.update_sparsity(self.online['sparsity'].get_mean().item(), mode='y')
             self.monitor.update_sparsity(self.online['sparsity-h'].get_mean().item(), mode='h')
             self.monitor.clusters_heatmap(centroids(y), title="Embeddings 'y'")
@@ -81,7 +81,7 @@ class TrainerIWTAMnist(TrainerIWTA):
 
     def training_started(self):
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
-        self.monitor.update_weight_nonzero_keep(self.model.weight_nonzero_keep())
+        self.monitor.update_k_w(self.model.k_w())
 
     def _on_forward_pass_batch(self, batch, output, train):
         h, y = output

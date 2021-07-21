@@ -83,14 +83,13 @@ class MonitorIWTA(MonitorEmbedding):
             legend=list(names),
         ))
 
-    def update_weight_nonzero_keep(self, nonzero_keep: dict):
-        if len(nonzero_keep) == 0:
+    def update_k_w(self, k_w: dict):
+        if len(k_w) == 0:
             return
-        names, nonzero_keep = zip(*nonzero_keep.items())
-        self.viz.line_update(y=nonzero_keep, opts=dict(
+        names, k_w = zip(*k_w.items())
+        self.viz.line_update(y=k_w, opts=dict(
             xlabel="Epoch",
-            ylabel="1.0 - dropout",
-            title="Weight nonzero keep",
+            title="k_w",
             legend=list(names),
         ))
 
