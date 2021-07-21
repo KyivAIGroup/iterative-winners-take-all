@@ -1,9 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from tqdm import trange
 
-from metrics import compute_loss, compute_accuracy, cluster_centroids, compute_convergence
+from metrics import compute_loss, compute_accuracy, cluster_centroids, \
+    compute_convergence
 from networks import NetworkPermanenceVaryingSparsity
 
 N_x = N_y = N_h = 200
@@ -104,6 +106,7 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     if min(map(np.nanmin, convergence.values())) < 0.05:
         axes[1].set_ylim(ymin=0.)
     axes[-1].set_xlim(xmin=0)
+    axes[-1].xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.tight_layout()
 
     results_dir = Path("results") / experiment_name

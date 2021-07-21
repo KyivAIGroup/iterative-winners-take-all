@@ -15,9 +15,9 @@ np.random.seed(0)
 N_x = N_y = N_h = 200
 s_x = 0.05
 
-N_ITERS = 70
-N_CHOOSE = 5
-LEARNING_RATE = 0.01
+N_ITERS = 10
+N_CHOOSE = None
+LEARNING_RATE = 0.001
 
 
 def generate_similar_input(x, n_generate, overlap=0.5):

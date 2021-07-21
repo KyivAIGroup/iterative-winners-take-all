@@ -88,7 +88,7 @@ def sample_from_distribution(px, n_neurons, n_samples, k):
 px = [0.2, 0.2, 0.6]
 
 for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSparsity, PermanenceVogels):
-    N_ITERS = 6 if perm_cls is ParameterBinary else 60
+    N_ITERS = 6 if perm_cls is ParameterBinary else 15
     y_sparsity = np.zeros((N_REPEATS, N_ITERS, len(px)), dtype=np.float32)
     convergence = np.zeros((N_REPEATS, N_ITERS))
     weight_sparsity = {"w_hy": np.zeros(N_REPEATS)}

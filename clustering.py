@@ -2,7 +2,6 @@
 Clustering experiment shows that if the data is sampled from noisy clusters,
 the noise in the iWTA output is reduced after training.
 """
-
 import numpy as np
 
 from experiment import run_experiment
@@ -14,9 +13,9 @@ np.random.seed(0)
 N_x = N_y = N_h = 200
 s_x = 0.2
 
-N_ITERS = 35
-N_CHOOSE = 10
-LEARNING_RATE = 0.01
+N_ITERS = 20
+N_CHOOSE = None
+LEARNING_RATE = 0.001
 
 N_CLASSES = 10
 N_SAMPLES_PER_CLASS = 100
