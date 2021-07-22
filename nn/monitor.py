@@ -83,13 +83,13 @@ class MonitorIWTA(MonitorEmbedding):
             legend=list(names),
         ))
 
-    def update_k_w(self, k_w: dict):
-        if len(k_w) == 0:
+    def update_s_w(self, s_w: dict):
+        if len(s_w) == 0:
             return
-        names, k_w = zip(*k_w.items())
-        self.viz.line_update(y=k_w, opts=dict(
+        names, s_w = zip(*s_w.items())
+        self.viz.line_update(y=s_w, opts=dict(
             xlabel="Epoch",
-            title="k_w",
+            title="s_w",
             legend=list(names),
         ))
 

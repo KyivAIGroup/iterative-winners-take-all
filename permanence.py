@@ -159,8 +159,11 @@ class PermanenceFixedSparsity(ParameterBinary):
         Normalize the permanence and binary weights matrices.
         """
         normalize_presynaptic(self.permanence)
-        # each output neuron will have 'k' synapses to input neurons
+        # Each output neuron will have 'k' synapses to input neurons.
+        # Keep the weight sparsity fixed.
         k = math.ceil(self.sum() / self.shape[0])
+
+        # Leave the 'k' largest entries of 'P' in 'w' for each output neuron
         winners = np.argsort(self.permanence, axis=1)[:, -k:]  # (N_out, k)
         self.fill(0)
         self[np.arange(self.shape[0])[:, np.newaxis], winners] = 1
@@ -254,35 +257,36 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         mat = super().__new__(cls, data)
         mat.excitatory = excitatory
         mat.output_sparsity_desired = output_sparsity_desired
-        mat.k_w = np.random.random()  # target weight sparsity
+        mat.s_w = np.random.random()  # target weight sparsity
         return mat
 
-    def update_k_w(self, output_sparsity: float, gamma=0.1):
+    def update_s_w(self, output_sparsity: float, gamma=0.1):
         """
-        Update the k_w.
+        Update the s_w, the target weight sparsity.
 
         Parameters
         ----------
         output_sparsity : float
             The output population sparsity.
         gamma : float, optional
-            The update speed.
+            The weight sparsity update speed.
             Default: 0.1
 
         Returns
         -------
-        k_w : float
-            A new value for k_w.
+        s_w : float
+            A new value for s_w.
         """
-        k_inc = min(0.95, self.k_w * (1 + gamma))
-        k_dec = max(0.05, self.k_w * (1 - gamma))
-        k_w = self.k_w
+        # 0.05 and 0.95 values are chosen arbitrary to prevent the saturation
+        s_inc = min(0.95, self.s_w * (1 + gamma))
+        s_dec = max(0.05, self.s_w * (1 - gamma))
+        s_w = self.s_w
         s_min, s_max = self.output_sparsity_desired
         if output_sparsity > s_max:
-            k_w = k_dec if self.excitatory else k_inc
+            s_w = s_dec if self.excitatory else s_inc
         elif output_sparsity < s_min:
-            k_w = k_inc if self.excitatory else k_dec
-        return k_w
+            s_w = s_inc if self.excitatory else s_dec
+        return s_w
 
     def update(self, x_pre, x_post, n_choose=10, lr=0.001):
         """
@@ -305,7 +309,7 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
             Default: 0.001
         """
         output_sparsity = np.count_nonzero(x_post) / x_post.size
-        self.k_w = self.update_k_w(output_sparsity)
+        self.s_w = self.update_s_w(output_sparsity)
         super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
 
     def normalize(self):
@@ -313,9 +317,13 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         Normalize the permanence and binary weights matrices.
         """
         normalize_presynaptic(self.permanence)
-        # each output neuron will have 'k' synapses to input neurons
-        k = math.ceil(self.k_w * self.size / self.shape[0])
+        # Each output neuron will have 'k' synapses to input neurons.
+        # The weight matrix shape is (N_out, N_in).
+        k = math.ceil(self.s_w * self.shape[1])
+
+        # Leave the 'k' largest entries of 'P' in 'w' for each output neuron
         winners = np.argsort(self.permanence, axis=1)[:, -k:]  # (N_out, k)
         self.fill(0)
         self[np.arange(self.shape[0])[:, np.newaxis], winners] = 1
-        self.permanence *= self.data
+
+        self.permanence *= self  # prune permanences, removed in weights

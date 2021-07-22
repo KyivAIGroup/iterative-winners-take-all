@@ -17,7 +17,7 @@ s_x = 0.05
 
 N_ITERS = 10
 N_CHOOSE = None
-LEARNING_RATE = 0.001
+LEARNING_RATE = 0.01
 
 
 def generate_similar_input(x, n_generate, overlap=0.5):
@@ -65,7 +65,7 @@ for network_cls in (NetworkPermanenceVaryingSparsity,
                     NetworkPermanenceFixedSparsity,
                     NetworkPermanenceVogels):
     run_experiment(x, labels, network_cls=network_cls,
-                   architecture=('w_xy', 'w_xh', 'w_hy', 'w_hh'),
+                   architecture=('w_xy', 'w_xh', 'w_hy', 'w_hh', 'w_yh'),
                    weights_learn=('w_hy',),
                    n_iters=N_ITERS, n_choose=N_CHOOSE, lr=LEARNING_RATE,
                    experiment_name="decorrelation")

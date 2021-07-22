@@ -6,23 +6,26 @@ about the input data distribution (frequency of encountering).
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from tqdm import trange
 
 from kwta import iWTA, iWTA_history
-from permanence import *
 from metrics import compute_convergence
+from permanence import *
 
 # Fix the random seed to reproduce the results
 np.random.seed(0)
 # plt.style.use('ggplot')
 
 N_x = N_h = N_y = 200
-s_x, s_w_xy, s_w_xh, s_w_hy, s_w_hh = 0.2, 0.1, 0.1, 0.1, 0.1
-N_REPEATS = 50
+s_x = 0.2
+s_w_xy = s_w_xh = s_w_hy = s_w_hh = 0.05
+N_REPEATS = 5
 N_CHOOSE = 10
 LEARNING_RATE = 0.01
-N_SAMPLES_TOTAL = 30
+N_SAMPLES_TOTAL = 10  # 2 samples of x_0 and x_1 and 6 of x_2
+px = [0.2, 0.2, 0.6]  # probability of encountering x_0, x_1, and x_2
 
 
 def generate_k_active(n, k):
@@ -84,8 +87,6 @@ def sample_from_distribution(px, n_neurons, n_samples, k):
     x = x[labels].T
     return x, labels
 
-
-px = [0.2, 0.2, 0.6]
 
 for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSparsity, PermanenceVogels):
     N_ITERS = 6 if perm_cls is ParameterBinary else 15
@@ -160,6 +161,7 @@ for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSpar
         ax[0].fill_between(range(N_ITERS), m + s, m - s, alpha=0.2)
     ax[0].legend()
     ax[-1].set_xlabel("Iteration")
+    ax[-1].xaxis.set_major_locator(MaxNLocator(integer=True))
     ax[0].set_ylabel("$s_y$")
     ax[-1].set_xlim(xmin=0)
     ax[0].set_ylim(ymin=0)

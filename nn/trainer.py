@@ -118,7 +118,7 @@ class TrainerIWTA(TrainerEmbedding):
     def training_started(self):
         # self.monitor.weights_heatmap(self.model)
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
-        self.monitor.update_k_w(self.model.k_w())
+        self.monitor.update_s_w(self.model.s_w())
         x_centroids = AccuracyEmbedding()
         x = []
         for x_batch, labels in self.data_loader.eval():
@@ -143,7 +143,7 @@ class TrainerIWTA(TrainerEmbedding):
         self.monitor.update_contribution(self.model.weight_contribution())
         self.monitor.update_kwta_thresholds(self.model.kwta_thresholds())
         self.monitor.update_weight_sparsity(self.model.weight_sparsity())
-        self.monitor.update_k_w(self.model.k_w())
+        self.monitor.update_s_w(self.model.s_w())
         self._update_cached()
         self.model.epoch_finished()
         TrainerGrad._epoch_finished(self, loss)

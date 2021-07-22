@@ -6,6 +6,8 @@ Here is a snapshot of running the *clustering* experiment.
 
 ![PyTorch](../images/pytorch_screenshot.png)
 
+Note, to follow PyTorch batch logic, we swap the axis in weights, compared to the Numpy implementation.
+
 ## Quick start
 
 Python 3.6+ is required.
