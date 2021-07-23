@@ -6,11 +6,7 @@ Learning rules implementation:
   4. Permanence with varying sparsity.
 """
 
-import math
 import numpy as np
-
-from kwta import kWTA
-
 
 __all__ = [
     "ParameterBinary",
@@ -113,10 +109,9 @@ class PermanenceFixedSparsity(ParameterBinary):
         if data is None:
             return None
         assert np.unique(data).tolist() == [0, 1], "A binary matrix is expected"
-        mat = data.view(cls)
-        permanence = np.random.random(data.shape)
-        normalize_presynaptic(permanence)
-        mat.permanence = permanence
+        mat = data * np.random.random(data.shape).view(cls)
+        normalize_presynaptic(mat)
+        mat.permanence = mat
         return mat
 
     def __array_finalize__(self, obj):
@@ -163,14 +158,6 @@ class PermanenceFixedSparsity(ParameterBinary):
         Normalize the permanence and binary weights matrices.
         """
         normalize_presynaptic(self.permanence)
-        # Each output neuron will have 'k' synapses to input neurons.
-        # Keep the weight sparsity fixed.
-        k = math.ceil(self.sum() / self.shape[0])
-
-        # Leave the 'k' largest entries of 'P' in 'w' for each output neuron
-        winners = np.argsort(self.permanence, axis=1)[:, -k:]  # (N_out, k)
-        self.fill(0)
-        self[np.arange(self.shape[0])[:, np.newaxis], winners] = 1
 
 
 class PermanenceVogels(PermanenceFixedSparsity):
@@ -232,7 +219,7 @@ class PermanenceVogels(PermanenceFixedSparsity):
         Normalize the permanence and binary weights matrices.
         """
         self.permanence.clip(min=0, out=self.permanence)
-        super().normalize()
+        normalize_presynaptic(self.permanence)
 
 
 class PermanenceVaryingSparsity(PermanenceFixedSparsity):
@@ -315,19 +302,3 @@ class PermanenceVaryingSparsity(PermanenceFixedSparsity):
         output_sparsity = np.count_nonzero(x_post) / x_post.size
         self.s_w = self.update_s_w(output_sparsity)
         super().update(x_pre, x_post, n_choose=n_choose, lr=lr)
-
-    def normalize(self):
-        """
-        Normalize the permanence and binary weights matrices.
-        """
-        normalize_presynaptic(self.permanence)
-        # Each output neuron will have 'k' synapses to input neurons.
-        # The weight matrix shape is (N_out, N_in).
-        k = math.ceil(self.s_w * self.shape[1])
-
-        # Leave the 'k' largest entries of 'P' in 'w' for each output neuron
-        winners = np.argsort(self.permanence, axis=1)[:, -k:]  # (N_out, k)
-        self.fill(0)
-        self[np.arange(self.shape[0])[:, np.newaxis], winners] = 1
-
-        self.permanence *= self  # prune permanences, removed in weights

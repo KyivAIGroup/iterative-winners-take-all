@@ -107,4 +107,6 @@ def compute_convergence(output, output_prev):
     """
     if output is None or output_prev is None:
         return None
-    return (output ^ output_prev).mean()
+    if np.issubdtype(output.dtype, np.bool):
+        return (output ^ output_prev).mean()
+    return np.abs(output - output_prev).mean()

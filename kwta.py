@@ -54,8 +54,8 @@ def iWTA(x, w_xh, w_xy, w_hy, w_yy=None, w_hh=None, w_yh=None):
     y0 = w_xy @ x
     h = np.zeros_like(h0, dtype=np.int32)
     y = np.zeros_like(y0, dtype=np.int32)
-    t_start = max(h0.max(), y0.max())
-    for threshold in range(t_start, 0, -1):
+    t_start = max(h0.max(), y0.max())  # <= 1.0
+    for threshold in np.linspace(t_start, 0, num=20, endpoint=False):
         z_h = h0
         if w_hh is not None:
             z_h = z_h - w_hh @ h
@@ -96,9 +96,9 @@ def iWTA_history(x, w_xh, w_xy, w_hy, w_yy=None, w_hh=None, w_yh=None):
     y0 = w_xy @ x
     h = np.zeros_like(h0, dtype=np.int32)
     y = np.zeros_like(y0, dtype=np.int32)
-    t_start = max(h0.max(), y0.max())
+    t_start = max(h0.max(), y0.max())  # <= 1.0
     history = []
-    for threshold in range(t_start, 0, -1):
+    for threshold in np.linspace(t_start, 0, num=20, endpoint=False):
         z_h = h0
         if w_hh is not None:
             z_h = z_h - w_hh @ h
