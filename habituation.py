@@ -21,6 +21,7 @@ np.random.seed(0)
 N_x = N_h = N_y = 200
 s_x = 0.2
 s_w_xy = s_w_xh = s_w_hy = s_w_hh = 0.05
+s_w_yy = s_w_yh = 0.01
 N_REPEATS = 5
 N_CHOOSE = 10
 LEARNING_RATE = 0.01
@@ -104,6 +105,8 @@ for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSpar
         w_xh = np.random.binomial(1, s_w_xh, size=(N_h, N_x))
         w_hy = np.random.binomial(1, s_w_hy, size=(N_y, N_h))
         w_hh = np.random.binomial(1, s_w_hh, size=(N_h, N_h))
+        w_yy = np.random.binomial(1, s_w_yy, size=(N_y, N_y))
+        w_yh = np.random.binomial(1, s_w_yh, size=(N_h, N_y))
 
         # Train w_hy only
         w_hy = perm_cls(w_hy, excitatory=False)
@@ -111,14 +114,14 @@ for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSpar
         y_prev = None
         for iter_id in range(N_ITERS):
             if perm_cls is PermanenceVogels:
-                z_h, z_y = iWTA_history(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
+                z_h, z_y = iWTA_history(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
                 w_hy.update(x_pre=z_h, x_post=z_y, n_choose=N_CHOOSE, lr=LEARNING_RATE)
                 h, y = z_h[0], z_y[0]
                 for i in range(1, len(z_h)):
                     h |= z_h[i]
                     y |= z_y[i]
             else:
-                h, y = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh)
+                h, y = iWTA(x, w_xh=w_xh, w_xy=w_xy, w_hy=w_hy, w_hh=w_hh, w_yy=w_yy, w_yh=w_yh)
                 w_hy.update(x_pre=h, x_post=y, n_choose=N_CHOOSE, lr=LEARNING_RATE)
             y_sparsity_i = y.mean(axis=0)
             for label in range(len(px)):
@@ -177,4 +180,4 @@ for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSpar
     plt.tight_layout()
     fig.savefig(results_dir / f"{perm_cls.__name__}.png", dpi=300)
 
-    # plt.show()
+    plt.show()
