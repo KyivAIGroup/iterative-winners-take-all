@@ -10,13 +10,27 @@ from networks import *
 # Fix the random seed to reproduce the results
 np.random.seed(0)
 
-N_x = N_y = N_h = 200
+# The dimensionality of input vector 'x' and output populations 'h' and 'y'
+N_x = N_h = N_y = 200
+
+# The sparsity of input vectors 'x'
 s_x = 0.2
 
+# Repeat the experiment N times
+N_REPEATS = 5
+
+# The no. of full iterations to run
 N_ITERS = 20
-N_CHOOSE = None
+
+# N_CHOOSE defines the number of synapses to update from a sample pair.
+# It controls how much the boolean matrix 'm' is filled.
+# Set to None to update all active synapses.
+N_CHOOSE = 10
+
+# The learning rate
 LEARNING_RATE = 0.01
 
+# Generate 10 random clusters with 100 samples each
 N_CLASSES = 10
 N_SAMPLES_PER_CLASS = 100
 
@@ -29,7 +43,7 @@ white_noise = np.random.binomial(1, 0.5 * s_x, size=x.shape)
 x ^= white_noise
 
 for network_cls in (NetworkPermanenceVaryingSparsity,
-                    NetworkWillshaw,
+                    NetworkSimpleHebb,
                     NetworkKWTA,
                     NetworkPermanenceFixedSparsity,
                     NetworkPermanenceVogels):

@@ -12,11 +12,24 @@ from networks import *
 # Fix the random seed to reproduce the results
 np.random.seed(0)
 
-N_x = N_y = N_h = 200
-s_x = 0.05
+# The dimensionality of input vector 'x' and output populations 'h' and 'y'
+N_x = N_h = N_y = 200
 
+# The sparsity of input vectors 'x'
+s_x = 0.2
+
+# Repeat the experiment N times
+N_REPEATS = 5
+
+# The no. of full iterations to run
 N_ITERS = 10
+
+# N_CHOOSE defines the number of synapses to update from a sample pair.
+# It controls how much the boolean matrix 'm' is filled.
+# Set to None to update all active synapses.
 N_CHOOSE = None
+
+# The learning rate
 LEARNING_RATE = 0.01
 
 
@@ -60,7 +73,7 @@ labels = np.arange(x.shape[1])
 print(f"input 'x' sparsity: {x.mean()}")
 
 for network_cls in (NetworkPermanenceVaryingSparsity,
-                    NetworkWillshaw,
+                    NetworkSimpleHebb,
                     NetworkKWTA,
                     NetworkPermanenceFixedSparsity,
                     NetworkPermanenceVogels):

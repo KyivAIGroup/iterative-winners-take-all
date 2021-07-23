@@ -1,8 +1,8 @@
 """
 Learning rules implementation:
-  1. Classical Willshaw associative memory.
+  1. Classical Willshaw associative memory (SimpleHebb).
   2. Permanence with fixed sparsity.
-  3. Permanence updates by Vogels.
+  3. Permanence updates by Vogels (not shown in the paper).
   4. Permanence with varying sparsity.
 """
 
@@ -13,7 +13,7 @@ from kwta import kWTA
 
 
 __all__ = [
-    "ParameterBinary",
+    "SimpleHebb",
     "PermanenceFixedSparsity",
     "PermanenceVogels",
     "PermanenceVaryingSparsity"
@@ -35,7 +35,7 @@ def normalize_presynaptic(mat):
     mat /= presum
 
 
-class ParameterBinary(np.ndarray):
+class SimpleHebb(np.ndarray):
     """
     A weight matrix with classical Willshaw associative memory learning rule:
 
@@ -44,7 +44,7 @@ class ParameterBinary(np.ndarray):
 
     def __new__(cls, data, **kwargs):
         """
-        Convert a numpy array to the ParameterBinary instance.
+        Convert a numpy array to the SimpleHebb instance.
 
         Parameters
         ----------
@@ -94,7 +94,7 @@ class ParameterBinary(np.ndarray):
         return self.view(np.ndarray) @ matrix
 
 
-class PermanenceFixedSparsity(ParameterBinary):
+class PermanenceFixedSparsity(SimpleHebb):
     """
     A weight matrix with permanence with fixed sparsity learning rule.
     The binary weights sparsity is kept fixed and equal to the initial sparsity

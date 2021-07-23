@@ -23,15 +23,29 @@ mpl.rcParams['figure.titlesize'] = 14
 
 # Fix the random seed to reproduce the results
 np.random.seed(0)
-# plt.style.use('ggplot')
 
+# The dimensionality of input vector 'x' and output populations 'h' and 'y'
 N_x = N_h = N_y = 200
+
+# The sparsity of input vectors 'x'
 s_x = 0.2
+
+# The initial sparsity of the weights
 s_w_xy = s_w_xh = s_w_hy = s_w_hh = 0.05
 s_w_yy = s_w_yh = 0.01
+
+# Repeat the experiment N times
 N_REPEATS = 5
+
+# N_CHOOSE defines the number of synapses to update from a sample pair.
+# It controls how much the boolean matrix 'm' is filled.
+# Set to None to update all active synapses.
 N_CHOOSE = 10
+
+# The learning rate
 LEARNING_RATE = 0.01
+
+# Settings to generate input data for the habituation experiment:
 N_SAMPLES_TOTAL = 10  # 2 samples of x_0 and x_1 and 6 of x_2
 px = [0.2, 0.2, 0.6]  # probability of encountering x_0, x_1, and x_2
 
@@ -96,8 +110,8 @@ def sample_from_distribution(px, n_neurons, n_samples, k):
     return x, labels
 
 
-for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSparsity, PermanenceVogels):
-    N_ITERS = 6 if perm_cls is ParameterBinary else 15
+for perm_cls in (PermanenceVaryingSparsity, SimpleHebb, PermanenceFixedSparsity, PermanenceVogels):
+    N_ITERS = 6 if perm_cls is SimpleHebb else 15
     y_sparsity = np.zeros((N_REPEATS, N_ITERS, len(px)), dtype=np.float32)
     convergence = np.zeros((N_REPEATS, N_ITERS))
     weight_sparsity = {"w_hy": np.zeros(N_REPEATS)}
@@ -156,12 +170,12 @@ for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSpar
     ax.set_yticklabels([f"$y(x_{i})$" for i in range(len(px))])
     ax.set_xticks([0, N_y - 1])
     ax.set_xticklabels(['1', str(N_y)])
-    ax.set_title("Habituation rasterplot")
+    ax.set_title("Habituation raster plot")
     ax.set_xlabel("Neuron")
     ax.xaxis.set_label_coords(0.5, -0.03)
     fig.savefig(results_dir / f"rasterplot {perm_cls.__name__}.pdf", bbox_inches='tight')
 
-    fig, ax = plt.subplots(nrows=1 + (perm_cls is not ParameterBinary), sharex=True)
+    fig, ax = plt.subplots(nrows=1 + (perm_cls is not SimpleHebb), sharex=True)
     ax = np.atleast_1d(ax)
     mean = y_sparsity.mean(axis=0)
     std = y_sparsity.std(axis=0)
@@ -184,6 +198,7 @@ for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSpar
         ax[1].fill_between(range(N_ITERS), mean + std, mean - std, alpha=0.2)
         ax[1].set_ylim(ymin=0)
         ax[1].legend()
+    plt.suptitle(f"Habituation {perm_cls.__name__}")
     plt.tight_layout()
     fig.savefig(results_dir / f"{perm_cls.__name__}.pdf", bbox_inches='tight')
 

@@ -8,7 +8,7 @@ from permanence import *
 
 
 __all__ = [
-    "NetworkWillshaw",
+    "NetworkSimpleHebb",
     "NetworkKWTA",
     "NetworkPermanenceFixedSparsity",
     "NetworkPermanenceVogels",
@@ -27,7 +27,7 @@ class Network:
             self.weights[name] = perm_cls(self.weights[name])
 
 
-class NetworkWillshaw(Network):
+class NetworkSimpleHebb(Network):
     """
     An iWTA network that takes input 'x', outputs inhibitory 'h' and
     excitatory 'y' signals and is updated by the classical Willshaw's
@@ -46,10 +46,10 @@ class NetworkWillshaw(Network):
         A list of connection names to learn. The rest are set fixed.
     """
 
-    name = "Classical Willshaw iWTA"
+    name = "SimpleHebb"
 
     def __init__(self, weights: dict, weights_learn=()):
-        super().__init__(weights, weights_learn, perm_cls=ParameterBinary)
+        super().__init__(weights, weights_learn, perm_cls=SimpleHebb)
 
     def train_epoch(self, x, n_choose=10, **kwargs):
         """
@@ -106,7 +106,7 @@ class NetworkKWTA(Network):
         A list of connection names to learn. The rest are set fixed.
     """
 
-    name = "kWTA permanence fixed sparsity"
+    name = "kWTA + permanence fixed weight sparsity"
     K_FIXED = 10
 
     def __init__(self, weights: dict, weights_learn=()):
@@ -164,7 +164,7 @@ class NetworkPermanenceFixedSparsity(Network):
         A list of connection names to learn. The rest are set fixed.
     """
 
-    name = "Permanence fixed sparsity"
+    name = "Permanence fixed weight sparsity"
 
     def __init__(self, weights: dict, weights_learn=()):
         super().__init__(weights, weights_learn, perm_cls=PermanenceFixedSparsity)
@@ -225,7 +225,7 @@ class NetworkPermanenceVaryingSparsity(NetworkPermanenceFixedSparsity):
         A list of connection names to learn. The rest are set fixed.
     """
 
-    name = "Permanence varying sparsity"
+    name = "Permanence varying weight sparsity"
 
     def __init__(self, weights: dict, weights_learn=(),
                  output_sparsity_desired=(0.025, 0.1)):
@@ -257,7 +257,7 @@ class NetworkPermanenceVogels(Network):
         A list of connection names to learn. The rest are set fixed.
     """
 
-    name = "Permanence Vogels"
+    name = "Permanence update by Vogels"
 
     def __init__(self, weights: dict, weights_learn=()):
         self.weights = weights

@@ -4,9 +4,9 @@ Metrics, used in the paper.
 import numpy as np
 
 
-def compute_loss(output, labels):
+def compute_error(output, labels):
     """
-    Compute the loss function.
+    Compute the error function.
 
     Parameters
     ----------
@@ -17,16 +17,17 @@ def compute_loss(output, labels):
 
     Returns
     -------
-    loss : float
-        The loss.
+    error : float
+        The total error.
     """
     assert len(output) == len(labels)
     norm = np.linalg.norm(output, axis=1, keepdims=True)
     norm += 1e-10  # add a small value to avoid division by zero
     output = output / norm
     cosine_similarity = output.dot(output.T)
-    loss = []
+    error = []
     labels_unique = np.unique(labels)
+    # Labels repeat in clustering experiment and are unique in decorrelation
     clustering = len(labels) > len(labels_unique)
     for label in labels_unique:
         mask_same = labels == label
@@ -39,13 +40,13 @@ def compute_loss(output, labels):
                 continue
             ii, jj = np.triu_indices(n, k=1)
             cos_same = cos_same[ii, jj].mean()
-            loss.append(1 - cos_same + cos_other)
+            error.append(1 - cos_same + cos_other)
         else:
-            loss.append(cos_other)
-    if len(loss) == 0:
+            error.append(cos_other)
+    if len(error) == 0:
         return None
-    loss = np.mean(loss)
-    return loss
+    error = np.mean(error)
+    return error
 
 
 def cluster_centroids(output, labels):

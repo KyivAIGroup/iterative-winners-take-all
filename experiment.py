@@ -5,7 +5,7 @@ from matplotlib.ticker import MaxNLocator
 from pathlib import Path
 from tqdm import trange
 
-from metrics import compute_loss, compute_accuracy, cluster_centroids, \
+from metrics import compute_error, compute_accuracy, cluster_centroids, \
     compute_convergence
 from networks import NetworkPermanenceVaryingSparsity
 
@@ -15,8 +15,10 @@ mpl.rcParams['font.size'] = 13
 mpl.rcParams['legend.fontsize'] = 12
 mpl.rcParams['figure.titlesize'] = 14
 
+# The dimensionality of input vector 'x' and output populations 'h' and 'y'
 N_x = N_y = N_h = 200
-s_x = 0.2
+
+# The initial sparsity of the weights
 s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
 
 # A color-blind friendly palette
@@ -76,7 +78,7 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     network = network_cls(weights, weights_learn=weights_learn)
 
     sparsity = dict(y=np.zeros(n_iters), h=np.zeros(n_iters))
-    loss = dict(y=np.zeros(n_iters), h=np.zeros(n_iters))
+    error = dict(y=np.zeros(n_iters), h=np.zeros(n_iters))
     accuracy = dict(y=np.zeros(n_iters), h=np.zeros(n_iters))
     convergence = dict(y=np.zeros(n_iters), h=np.zeros(n_iters))
     output_prev = dict(y=None, h=None)
@@ -84,7 +86,7 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
         h, y = network.train_epoch(x, n_choose=n_choose, lr=lr)
         for name, output in zip(('h', 'y'), (h, y)):
             sparsity[name][iter_id] = output.mean()
-            loss[name][iter_id] = compute_loss(output.T, labels)
+            error[name][iter_id] = compute_error(output.T, labels)
             accuracy[name][iter_id] = compute_accuracy(output.T, labels)
             convergence[name][iter_id] = compute_convergence(output, output_prev[name])
             output_prev[name] = output.copy()
@@ -96,16 +98,16 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
 
     fig, axes = plt.subplots(nrows=2 + with_accuracy, sharex=True)
     axes[-1].set_xlabel("Iteration")
-    axes[0].set_ylabel("Loss")
+    axes[0].set_ylabel("Error")
     axes[1].set_ylabel("Convergence")
     if with_accuracy:
         axes[2].set_ylabel("Accuracy")
-    # plt.suptitle(f"{network.name} {experiment_name}")
+    plt.suptitle(f"{experiment_name.capitalize()}. {network.name}")
 
-    loss_x = compute_loss(x.T, labels)
-    axes[0].axhline(y=loss_x, xmin=0, xmax=n_iters - 1, ls='--', color='gray', label="input '$x$'")
+    error_x = compute_error(x.T, labels)
+    axes[0].axhline(y=error_x, xmin=0, xmax=n_iters - 1, ls='--', color='gray', label="input '$x$'")
     for i, name in enumerate(['h', 'y']):
-        axes[0].plot(range(n_iters), loss[name], label=f"output '${name}$'", color=colors[i])
+        axes[0].plot(range(n_iters), error[name], label=f"output '${name}$'", color=colors[i])
         axes[1].plot(range(n_iters), convergence[name], color=colors[i])
         if with_accuracy:
             axes[2].plot(range(n_iters), accuracy[name], color=colors[i])
@@ -125,9 +127,9 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     im = ax.imshow(centroids, aspect='auto', interpolation='none', cmap='GnBu')
     plt.colorbar(im)
     ax.set_xlabel("Neuron")
-    ax.set_ylabel("Class label")
-    # ax.set_title("Mean centroids of 'y'")
+    ax.set_ylabel("Cluster")
+    ax.set_title("Mean centroids of 'y'")
     fig.savefig(results_dir / f"centroids {network.name}.pdf", bbox_inches='tight')
-    # plt.show()
+    plt.show()
 
     return network
