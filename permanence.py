@@ -89,6 +89,10 @@ class ParameterBinary(np.ndarray):
                 y = np.random.choice(y, n_choose)
                 self[y, x] = 1
 
+    def __matmul__(self, matrix):
+        # treat as a numpy array when multiplied by a matrix
+        return self.view(np.ndarray) @ matrix
+
 
 class PermanenceFixedSparsity(ParameterBinary):
     """
