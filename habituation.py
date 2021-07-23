@@ -2,6 +2,7 @@
 Habituation experiment shows that the output sparsity encodes information
 about the input data distribution (frequency of encountering).
 """
+import matplotlib as mpl
 
 import math
 import matplotlib.pyplot as plt
@@ -13,6 +14,12 @@ from tqdm import trange
 from kwta import iWTA, iWTA_history
 from metrics import compute_convergence
 from permanence import *
+
+mpl.rcParams['savefig.dpi'] = 800
+mpl.rcParams['savefig.format'] = 'pdf'
+mpl.rcParams['font.size'] = 13
+mpl.rcParams['legend.fontsize'] = 12
+mpl.rcParams['figure.titlesize'] = 14
 
 # Fix the random seed to reproduce the results
 np.random.seed(0)
@@ -152,7 +159,7 @@ for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSpar
     ax.set_title("Habituation rasterplot")
     ax.set_xlabel("Neuron")
     ax.xaxis.set_label_coords(0.5, -0.03)
-    fig.savefig(results_dir / f"rasterplot {perm_cls.__name__}.png", dpi=300)
+    fig.savefig(results_dir / f"rasterplot {perm_cls.__name__}.pdf", bbox_inches='tight')
 
     fig, ax = plt.subplots(nrows=1 + (perm_cls is not ParameterBinary), sharex=True)
     ax = np.atleast_1d(ax)
@@ -178,6 +185,6 @@ for perm_cls in (PermanenceVaryingSparsity, ParameterBinary, PermanenceFixedSpar
         ax[1].set_ylim(ymin=0)
         ax[1].legend()
     plt.tight_layout()
-    fig.savefig(results_dir / f"{perm_cls.__name__}.png", dpi=300)
+    fig.savefig(results_dir / f"{perm_cls.__name__}.pdf", bbox_inches='tight')
 
     plt.show()
