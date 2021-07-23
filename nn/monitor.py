@@ -78,8 +78,7 @@ class MonitorIWTA(MonitorEmbedding):
         names, sparsity = zip(*sparsity.items())
         self.viz.line_update(y=sparsity, opts=dict(
             xlabel='Epoch',
-            ylabel='L1 norm / size',
-            title="Weight L1 sparsity",
+            title="Weight sparsity",
             legend=list(names),
         ))
 
@@ -177,7 +176,6 @@ class MonitorIWTA(MonitorEmbedding):
         labels, convergence = zip(*convergence.items())
         self.viz.line_update(y=convergence, opts=dict(
             xlabel='Epoch',
-            ylabel="mean(y ^ y_prev)",
             title="Output convergence",
             legend=list(labels),
         ))
@@ -199,8 +197,7 @@ class MonitorIWTA(MonitorEmbedding):
             labels, sparsity = zip(*sparsity.items())
             self.viz.line_update(y=sparsity, opts=dict(
                 xlabel='Epoch',
-                ylabel='||y||_0 / size(y)',
-                title="Output L0 sparsity",
+                title="Output sparsity",
                 legend=list(labels),
             ))
         else:

@@ -9,8 +9,8 @@ from metrics import compute_error, compute_accuracy, cluster_centroids, \
     compute_convergence
 from networks import NetworkPermanenceVaryingSparsity
 
-mpl.rcParams['savefig.dpi'] = 800
-mpl.rcParams['savefig.format'] = 'pdf'
+mpl.rcParams['savefig.dpi'] = 300
+mpl.rcParams['savefig.format'] = 'png'
 mpl.rcParams['font.size'] = 13
 mpl.rcParams['legend.fontsize'] = 12
 mpl.rcParams['figure.titlesize'] = 14
@@ -120,7 +120,7 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
 
     results_dir = Path("results") / experiment_name
     results_dir.mkdir(exist_ok=True, parents=True)
-    fig.savefig(results_dir / f"convergence {network.name}.pdf", bbox_inches='tight')
+    fig.savefig(results_dir / f"convergence {network.name}.png", bbox_inches='tight')
 
     fig, ax = plt.subplots()
     centroids = cluster_centroids(output_prev['y'].T, labels)
@@ -129,7 +129,7 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     ax.set_xlabel("Neuron")
     ax.set_ylabel("Cluster")
     ax.set_title("Mean centroids of 'y'")
-    fig.savefig(results_dir / f"centroids {network.name}.pdf", bbox_inches='tight')
+    fig.savefig(results_dir / f"centroids {network.name}.png", bbox_inches='tight')
     plt.show()
 
     return network

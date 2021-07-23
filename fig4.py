@@ -25,7 +25,7 @@ N_ITERS = 20
 # N_CHOOSE defines the number of synapses to update from a sample pair.
 # It controls how much the boolean matrix 'm' is filled.
 # Set to None to update all active synapses.
-N_CHOOSE = 10
+N_CHOOSE = None
 
 # The learning rate
 LEARNING_RATE = 0.01

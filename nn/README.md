@@ -4,7 +4,7 @@ This module is an experimental PyTorch implementation of iWTA. It includes addit
 
 Here is a snapshot of running the *clustering* experiment.
 
-![PyTorch](../images/pytorch_screenshot.png)
+![PyTorch](../figures/pytorch_screenshot.png)
 
 Note, to follow PyTorch batch logic, we swap the axis in weights, compared to the Numpy implementation.
 

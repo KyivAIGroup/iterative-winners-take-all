@@ -15,8 +15,8 @@ from kwta import iWTA, iWTA_history
 from metrics import compute_convergence
 from permanence import *
 
-mpl.rcParams['savefig.dpi'] = 800
-mpl.rcParams['savefig.format'] = 'pdf'
+mpl.rcParams['savefig.dpi'] = 300
+mpl.rcParams['savefig.format'] = 'png'
 mpl.rcParams['font.size'] = 13
 mpl.rcParams['legend.fontsize'] = 12
 mpl.rcParams['figure.titlesize'] = 14
@@ -173,7 +173,7 @@ for perm_cls in (PermanenceVaryingSparsity, SimpleHebb, PermanenceFixedSparsity,
     ax.set_title("Habituation raster plot")
     ax.set_xlabel("Neuron")
     ax.xaxis.set_label_coords(0.5, -0.03)
-    fig.savefig(results_dir / f"rasterplot {perm_cls.__name__}.pdf", bbox_inches='tight')
+    fig.savefig(results_dir / f"rasterplot {perm_cls.__name__}.png", bbox_inches='tight')
 
     fig, ax = plt.subplots(nrows=1 + (perm_cls is not SimpleHebb), sharex=True)
     ax = np.atleast_1d(ax)
@@ -200,6 +200,6 @@ for perm_cls in (PermanenceVaryingSparsity, SimpleHebb, PermanenceFixedSparsity,
         ax[1].legend()
     plt.suptitle(f"Habituation {perm_cls.__name__}")
     plt.tight_layout()
-    fig.savefig(results_dir / f"{perm_cls.__name__}.pdf", bbox_inches='tight')
+    fig.savefig(results_dir / f"{perm_cls.__name__}.png", bbox_inches='tight')
 
     plt.show()
