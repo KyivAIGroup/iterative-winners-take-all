@@ -4,6 +4,8 @@ This repository contains Python implementation of our paper:
 
 > FORMATION  OF CELL ASSEMBLIES WITH ITERATIVEWINNERS-TAKE-ALL COMPUTATION ANDEXCITATION–INHIBITION  BALANCE
 
+A preprint is here: https://bit.ly/paper_NC2021
+
 For PyTorch implementation, refer to the [`nn`](./nn) directory.
 
 ## Quick start
