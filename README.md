@@ -19,7 +19,7 @@ pip install -r requirements.txt
 
 Then you're ready to run the scripts to reproduce the figures in the paper.
 
-Should you have any questions, please [open an issue](https://github.com/KyivAIGroup/iterative-winners-take-all/issues) or send an email to us.
+Should you have any questions, please [open an issue](https://github.com/KyivAIGroup/iterative-winners-take-all/issues) or email us.
 
 ## Reproducing the figures
 
@@ -31,6 +31,24 @@ To reproduce the plots, run `python figX.py` in a terminal, where `figX.py` is o
 * [`decorrelation.py`](./decorrelation.py) - decorrelation (the figures are not shown in the paper).
 
 This section compiles all figures, listed and supplementary, in one page.
+
+### Figure 2. Dependence of the sparsity of encodings on the weight sparsity
+
+The weights are random and fixed.
+
+<table style="width:100%">
+    <tr>
+        <td>
+            <img src="figures/fig2a.png"/>
+        </td>
+        <td>
+            <img src="figures/fig2b.png"/>
+        </td>
+    </tr>
+</table>
+
+The figures from the next sections involve learning.
+
 
 ### Habituation
 

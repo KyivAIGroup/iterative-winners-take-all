@@ -43,11 +43,11 @@ def generate_random_matrix(R, N, a_x):
         matrix[i] = generate_random_vector(N, a_x)
     return matrix
 
-N_x = 100
-N_y = 100
-N_h = 100
+N_x = 200
+N_y = 200
+N_h = 200
 
-a_x = 10
+a_x = 20
 
 # The number of active neurons in the output vector
 a = {
@@ -67,6 +67,7 @@ w = {
     'w_yy': generate_random_matrix(N_y, N_y, a['yy']),
 }
 
+# Set iters to 200 to reproduce the figure
 iters = 10
 
 
@@ -89,18 +90,16 @@ def plot_w(weight, s='y'):
             s_h[k, i] = np.mean(H[k, i])
 
     if s == 'y':
-        s_y_mean = np.mean(s_y, axis=1)
-        s_y_std = np.std(s_y, axis=1)
-        ax.plot(w_range / N, s_y_mean, label='w$^{%s}$' % weight[2:])
-        ax.fill_between(w_range / N, s_y_mean + s_y_std, s_y_mean - s_y_std,
-                        alpha=0.5)
+        s_mean = np.mean(s_y, axis=1)
+        s_std = np.std(s_y, axis=1)
+    else:
+        # h
+        s_mean = np.mean(s_h, axis=1)
+        s_std = np.std(s_h, axis=1)
 
-    if s == 'h':
-        s_h_mean = np.mean(s_h, axis=1)
-        s_h_std = np.std(s_h, axis=1)
-        ax.plot(w_range / N, s_h_mean, label='w$^{%s}$' % weight[2:])
-        ax.fill_between(w_range / N, s_h_mean + s_h_std, s_h_mean - s_h_std,
-                        alpha=0.5)
+    ax.plot(w_range / N, s_mean, label='w$^{%s}$' % weight[2:])
+    ax.fill_between(w_range / N, s_mean + s_std, s_mean - s_std, alpha=0.5)
+
     # return to default
     w[weight] = generate_random_matrix(w[weight].shape[0], w[weight].shape[1],
                                        a[weight[2:]])
