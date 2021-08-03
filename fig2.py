@@ -49,7 +49,7 @@ N_h = 200
 
 a_x = 20
 
-# The number of active neurons in the output vector
+# The no. of active synapses in a weight matrix per output neuron
 a = {
     'xy': 20,
     'xh': 20,
@@ -58,6 +58,7 @@ a = {
     'yh': 20,
     'yy': 5,
 }
+
 w = {
     'w_xy': generate_random_matrix(N_y, N_x, a['xy']),
     'w_xh': generate_random_matrix(N_h, N_x, a['xh']),
@@ -90,10 +91,11 @@ def plot_w(weight, s='y'):
             s_h[k, i] = np.mean(H[k, i])
 
     if s == 'y':
+        # excitatory 'y' output population
         s_mean = np.mean(s_y, axis=1)
         s_std = np.std(s_y, axis=1)
     else:
-        # h
+        # inhibitory 'h' output population
         s_mean = np.mean(s_h, axis=1)
         s_std = np.std(s_h, axis=1)
 
