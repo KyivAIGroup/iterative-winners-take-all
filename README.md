@@ -26,7 +26,7 @@ Should you have any questions, please [open an issue](https://github.com/KyivAIG
 To reproduce the plots, run `python figX.py` in a terminal, where `figX.py` is one of the following:
 
 * [`fig2.py`](./fig2.py) - how the output populations sparsity depends on the weight sparsity (weights are random fand fixed);
- [`fig3b.py`](./fig3b.py) - habituation;
+* [`fig3b.py`](./fig3b.py) - habituation;
 * [`fig4.py`](./fig4.py) - clustering;
 * [`fig5.py`](./fig5.py) - dependence on the input sparsity (not shown in the paper);
 * [`fig6.py`](./fig6.py) - similarity preservation (not show in the paper);
