@@ -46,6 +46,7 @@ The weights are random and fixed.
     </tr>
 </table>
 
+The figures from the next sections involve learning. *Learning* the weights means letting the network evolve over time from input stimuli `x` rather than "training" it from labelled data. In other words, the learning is local and unsupervised.
 
 ### Habituation
 
@@ -123,5 +124,4 @@ The main feature is that the dependence is nonlinear and the same for different 
 <img src="figures/similarity_preservation.png" alt="figures/similarity_preservation.png" width="400"/>
 The figure shows how the cosine similarity between two input vectors changes in the encoding space. The sparsity of encodings influences the dependence. Results for iWTA are comparable to kWTA. Similar inputs are encoded in similar output populations. The higher the encoding sparsity the better preservation.
 
-The figures from the next sections involve learning. *Learning* the weights means letting the network evolve over time from input stimuli `x` rather than "training" it from labelled data. In other words, the learning is local and unsupervised.
 
