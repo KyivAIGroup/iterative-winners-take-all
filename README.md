@@ -34,27 +34,12 @@ To reproduce the plots, run `python figX.py` in a terminal, where `figX.py` is o
 
 This section compiles all figures, listed and supplementary, in one page.
 
-### Figure 2. Dependence of the sparsity of encodings on the weight sparsity
-
-The weights are random and fixed.
-
-<table style="width:100%">
-    <tr>
-        <td>
-            <img src="figures/fig2a.png"/>
-        </td>
-        <td>
-            <img src="figures/fig2b.png"/>
-        </td>
-    </tr>
-</table>
-
-### Dependence on the input sparsity
+### Figure 1. Dependence on the input sparsity
 
 <img src="figures/fig2c.png" alt="figures/fig2c.png" width="400"/>
 
 
-### Similarity preservation
+### Figure 2. Similarity preservation
 
 Similar input are encoded in similar output populations.
 
