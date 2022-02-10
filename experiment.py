@@ -22,7 +22,7 @@ N_x = N_y = N_h = 200
 s_w_xh = s_w_xy = s_w_hy = s_w_yy = s_w_hh = s_w_yh = 0.05
 
 # A color-blind friendly palette
-colors = ['#00429d', '#93003a']
+COLORS = ['#00429d', '#93003a']
 
 
 def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
@@ -97,7 +97,7 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
         print(f"{name} final sparsity: {weights[name].mean():.3f}")
 
     fig, axes = plt.subplots(nrows=2 + with_accuracy, sharex=True)
-    axes[-1].set_xlabel("Iteration")
+    axes[-1].set_xlabel("Epoch")
     axes[0].set_ylabel("Error")
     axes[1].set_ylabel("Convergence")
     if with_accuracy:
@@ -107,10 +107,10 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     error_x = compute_error(x.T, labels)
     axes[0].axhline(y=error_x, xmin=0, xmax=n_iters - 1, ls='--', color='gray', label="input '$x$'")
     for i, name in enumerate(['h', 'y']):
-        axes[0].plot(range(n_iters), error[name], label=f"output '${name}$'", color=colors[i])
-        axes[1].plot(range(n_iters), convergence[name], color=colors[i])
+        axes[0].plot(range(n_iters), error[name], label=f"output '${name}$'", color=COLORS[i])
+        axes[1].plot(range(n_iters), convergence[name], color=COLORS[i])
         if with_accuracy:
-            axes[2].plot(range(n_iters), accuracy[name], color=colors[i])
+            axes[2].plot(range(n_iters), accuracy[name], color=COLORS[i])
     axes[0].legend()
     if min(map(np.nanmin, convergence.values())) < 0.05:
         axes[1].set_ylim(ymin=0.)
@@ -132,4 +132,4 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     fig.savefig(results_dir / f"centroids {network.name}.png", bbox_inches='tight')
     plt.show()
 
-    return network
+    return network, dict(error=error, convergence=convergence)

@@ -1,5 +1,5 @@
 """
-How weight sparsity changes the encoding sparsity.
+How weight density changes the encoding density.
 """
 
 import matplotlib as mpl
@@ -79,28 +79,28 @@ def plot_w(weight, s='y'):
     w_range = np.arange(1, N, 5)
     Y = np.zeros((w_range.size, iters, N_y))
     H = np.zeros((w_range.size, iters, N_h))
-    s_y = np.zeros((w_range.size, iters))
-    s_h = np.zeros((w_range.size, iters))
+    d_y = np.zeros((w_range.size, iters))
+    d_h = np.zeros((w_range.size, iters))
     for k, a_i in enumerate(w_range):
         w[weight] = generate_random_matrix(w[weight].shape[0],
                                            w[weight].shape[1], a_i)
         for i in range(iters):
             x = generate_random_vector(N_x, a_x)
             H[k, i], Y[k, i] = iWTA(x, **w)
-            s_y[k, i] = np.mean(Y[k, i])
-            s_h[k, i] = np.mean(H[k, i])
+            d_y[k, i] = np.mean(Y[k, i])
+            d_h[k, i] = np.mean(H[k, i])
 
     if s == 'y':
         # excitatory 'y' output population
-        s_mean = np.mean(s_y, axis=1)
-        s_std = np.std(s_y, axis=1)
+        d_mean = np.mean(d_y, axis=1)
+        d_std = np.std(d_y, axis=1)
     else:
         # inhibitory 'h' output population
-        s_mean = np.mean(s_h, axis=1)
-        s_std = np.std(s_h, axis=1)
+        d_mean = np.mean(d_h, axis=1)
+        d_std = np.std(d_h, axis=1)
 
-    ax.plot(w_range / N, s_mean, label='w$^{%s}$' % weight[2:])
-    ax.fill_between(w_range / N, s_mean + s_std, s_mean - s_std, alpha=0.5)
+    ax.plot(w_range / N, d_mean, label='w$^{%s}$' % weight[2:])
+    ax.fill_between(w_range / N, d_mean + d_std, d_mean - d_std, alpha=0.5)
 
     # return to default
     w[weight] = generate_random_matrix(w[weight].shape[0], w[weight].shape[1],
@@ -119,8 +119,8 @@ plot_w('yh')
 plot_w('yy')
 
 ax.legend()
-ax.set_xlabel(r'$s_w$, weights sparsity')
-ax.set_ylabel(r'$s_y$, y layer sparsity')
+ax.set_xlabel(r'$d_w$, weights density')
+ax.set_ylabel(r'$d_y$, y layer density')
 plt.ylim([0, 1.05])
 plt.xlim([0, 1])
 fig.savefig(results_dir / 'fig2a.pdf', bbox_inches='tight')
@@ -134,8 +134,8 @@ plot_w('yh', 'h')
 plot_w('yy', 'h')
 
 ax.legend()
-ax.set_xlabel(r'$s_w$, weights sparsity')
-ax.set_ylabel(r'$s_h$, h layer sparsity')
+ax.set_xlabel(r'$d_w$, weights density')
+ax.set_ylabel(r'$d_h$, h layer density')
 plt.ylim([0, 1.05])
 plt.xlim([0, 1])
 fig.savefig(results_dir / 'fig2b.pdf', bbox_inches='tight')

@@ -184,9 +184,9 @@ for perm_cls in (PermanenceVaryingSparsity, SimpleHebb, PermanenceFixedSparsity,
         ax[0].plot(range(N_ITERS), m, label=f"$x_{label}$")
         ax[0].fill_between(range(N_ITERS), m + s, m - s, alpha=0.2)
     ax[0].legend()
-    ax[-1].set_xlabel("Iteration")
+    ax[-1].set_xlabel("Epoch (~10 iterations)")
     ax[-1].xaxis.set_major_locator(MaxNLocator(integer=True))
-    ax[0].set_ylabel("$s_y$")
+    ax[0].set_ylabel("$d_y$")
     ax[-1].set_xlim(xmin=0)
     ax[0].set_ylim(ymin=0)
 
