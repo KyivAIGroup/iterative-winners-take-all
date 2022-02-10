@@ -97,7 +97,7 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
         print(f"{name} final sparsity: {weights[name].mean():.3f}")
 
     fig, axes = plt.subplots(nrows=2 + with_accuracy, sharex=True)
-    axes[-1].set_xlabel("Epoch")
+    axes[-1].set_xlabel("Epoch (~10 iterations)")
     axes[0].set_ylabel("Error")
     axes[1].set_ylabel("Convergence")
     if with_accuracy:
@@ -120,7 +120,7 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
 
     results_dir = Path("results") / experiment_name
     results_dir.mkdir(exist_ok=True, parents=True)
-    fig.savefig(results_dir / f"convergence {network.name}.png", bbox_inches='tight')
+    fig.savefig(results_dir / f"convergence {network.name}", bbox_inches='tight')
 
     fig, ax = plt.subplots()
     centroids = cluster_centroids(output_prev['y'].T, labels)
@@ -129,7 +129,7 @@ def run_experiment(x, labels, network_cls=NetworkPermanenceVaryingSparsity,
     ax.set_xlabel("Neuron")
     ax.set_ylabel("Cluster")
     ax.set_title("Mean centroids of 'y'")
-    fig.savefig(results_dir / f"centroids {network.name}.png", bbox_inches='tight')
+    fig.savefig(results_dir / f"centroids {network.name}", bbox_inches='tight')
     plt.show()
 
     return network, dict(error=error, convergence=convergence)
