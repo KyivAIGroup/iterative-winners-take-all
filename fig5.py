@@ -46,7 +46,7 @@ a = {
 }
 
 # Increase 'iters' to make the figure smooth
-iters = 10
+iters = 200
 
 
 def plot_dependence_on_input_sparsity(N_x, N_h, N_y, colors):
@@ -59,28 +59,28 @@ def plot_dependence_on_input_sparsity(N_x, N_h, N_y, colors):
         'w_yy': generate_random_matrix(N_y, N_y, a['yy']),
     }
     a_x_range = np.arange(1, N_x, int(N_x * 0.01))
-    s_y = np.zeros((iters, a_x_range.size))
-    s_h = np.zeros((iters, a_x_range.size))
+    d_y = np.zeros((iters, a_x_range.size))
+    d_h = np.zeros((iters, a_x_range.size))
     for i in trange(iters,
-                    desc=f"Plotting dependence on s_x: N_h={N_h}, N_y={N_y}"):
+                    desc=f"Plotting dependence on d_x: N_h={N_h}, N_y={N_y}"):
         for k, ax_i in enumerate(a_x_range):
             x = generate_random_vector(N_x, ax_i)
             h, y = iWTA(x, **weights)
-            s_y[i, k] = np.mean(y)
-            s_h[i, k] = np.mean(h)
+            d_y[i, k] = np.mean(y)
+            d_h[i, k] = np.mean(h)
 
-    s_y_mean = np.mean(s_y, axis=0)
-    s_h_mean = np.mean(s_h, axis=0)
-    s_y_std = np.std(s_y, axis=0)
-    s_h_std = np.std(s_h, axis=0)
+    d_y_mean = np.mean(d_y, axis=0)
+    d_h_mean = np.mean(d_h, axis=0)
+    d_y_std = np.std(d_y, axis=0)
+    d_h_std = np.std(d_h, axis=0)
 
-    ax.plot(a_x_range / N_x, s_h_mean, label=f'$s_h, N_y=N_h={N_y}$',
+    ax.plot(a_x_range / N_x, d_h_mean, label=f'$d_h, N_y=N_h={N_y}$',
             color=colors[0])
-    ax.fill_between(a_x_range / N_x, s_h_mean + s_h_std, s_h_mean - s_h_std,
+    ax.fill_between(a_x_range / N_x, d_h_mean + d_h_std, d_h_mean - d_h_std,
                     alpha=0.2, color=colors[0])
-    ax.plot(a_x_range / N_x, s_y_mean, label=f'$s_y, N_y=N_h={N_y}$',
+    ax.plot(a_x_range / N_x, d_y_mean, label=f'$d_y, N_y=N_h={N_y}$',
             color=colors[1])
-    ax.fill_between(a_x_range / N_x, s_y_mean + s_y_std, s_y_mean - s_y_std,
+    ax.fill_between(a_x_range / N_x, d_y_mean + d_y_std, d_y_mean - d_y_std,
                     alpha=0.2, color=colors[1])
 
 
@@ -96,10 +96,11 @@ handles, labels = ax.get_legend_handles_labels()
 labels, handles = zip(*sorted(zip(labels, handles), key=lambda t: t[0]))
 ax.legend(handles, labels)
 
-ax.set_xlabel(r'$s_x$, input sparsity')
-ax.set_ylabel('encoding sparsity')
+ax.set_xlabel(r'$d_x$, input density')
+ax.set_ylabel('Encoding density')
 plt.ylim([0, 1.05])
 plt.xlim([0, 1])
-plt.title("Dependence on the input sparsity")
+plt.title("Dependence on the input density")
+plt.tight_layout()
 plt.savefig('figures/fig2c', bbox_inches='tight')
 plt.show()

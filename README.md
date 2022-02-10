@@ -28,12 +28,12 @@ To reproduce the plots, run `python figX.py` in a terminal, where `figX.py` is o
 * [`fig2.py`](./fig2.py) - how the output populations sparsity depends on the weight sparsity (weights are random fand fixed);
 * [`fig3b.py`](./fig3b.py) - habituation;
 * [`fig4.py`](./fig4.py) - clustering;
-* [`fig5.py`](./fig5.py) - dependence on the input sparsity (not shown in the paper);
+* [`fig5.py`](./fig5.py) - dependence on the input density (not shown in the paper);
 * [`fig6.py`](./fig6.py) - similarity preservation (not show in the paper);
 * [`decorrelation.py`](./decorrelation.py) - decorrelation (not shown in the paper).
 
 This section compiles all figures, listed and supplementary, in one page.
-### Figure 2 (from the paper). Dependence of the sparsity of encodings on the weight sparsity
+### Figure 2 (from the paper). Dependence of the density of encodings on the weight density
 The weights are random and fixed.
 <table style="width:100%">
     <tr>
@@ -92,6 +92,12 @@ The figures from the next sections involve learning. *Learning* the weights mean
 
 ### Clustering
 
+Comparison of iWTA (with *permanence-varying* learning) and kWTA on a clustering task. Run the [fig4.py](./fig4.py) script to generate this plot.
+
+<img src="figures/clustering/comparison.png" height="500"/>
+
+Complete run of each learning method:
+
 <table style="width:100%">
     <tr>
         <td>
@@ -113,15 +119,15 @@ The figures from the next sections involve learning. *Learning* the weights mean
 </table>
 
 
-### Figure 5. Dependence on the input sparsity
+### Figure 5. Dependence on the input density
 
 <img src="figures/fig2c.png" alt="figures/fig2c.png" width="400"/>
-Dependence of the sparsity of encodings on the input sparsity.
+
+Dependence of the density of encodings on the input density.
 The main feature is that the dependence is nonlinear and the same for different layer sizes.
 
 ### Figure 6. Similarity preservation
 
 <img src="figures/similarity_preservation.png" alt="figures/similarity_preservation.png" width="400"/>
-The figure shows how the cosine similarity between two input vectors changes in the encoding space. The sparsity of encodings influences the dependence. Results for iWTA are comparable to kWTA. Similar inputs are encoded in similar output populations. The higher the encoding sparsity the better preservation.
 
-
+The figure shows how the cosine similarity between two input vectors changes in the encoding space. The sparsity of encodings influences the dependence. Results for iWTA are comparable to kWTA. Similar inputs are encoded in similar output populations. The higher the encoding density (lower sparsity) the better preservation.

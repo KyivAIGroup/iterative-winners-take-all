@@ -15,8 +15,8 @@ from kwta import iWTA
 
 # mpl.rcParams['figure.figsize'] = [10.0, 8.0]
 # mpl.rcParams['figure.dpi'] = 80
-mpl.rcParams['savefig.dpi'] = 800
-mpl.rcParams['savefig.format'] = 'pdf'
+# mpl.rcParams['savefig.dpi'] = 800
+mpl.rcParams['savefig.format'] = 'png'
 
 mpl.rcParams['font.size'] = 14
 mpl.rcParams['legend.fontsize'] = 14
@@ -69,7 +69,7 @@ w = {
 }
 
 # Set iters to 200 to reproduce the figure
-iters = 10
+iters = 200
 
 
 def plot_w(weight, s='y'):
@@ -123,7 +123,7 @@ ax.set_xlabel(r'$d_w$, weights density')
 ax.set_ylabel(r'$d_y$, y layer density')
 plt.ylim([0, 1.05])
 plt.xlim([0, 1])
-fig.savefig(results_dir / 'fig2a.pdf', bbox_inches='tight')
+fig.savefig(results_dir / 'fig2a', bbox_inches='tight')
 
 fig, ax = plt.subplots(1)
 plot_w('xy', 'h')
@@ -138,5 +138,5 @@ ax.set_xlabel(r'$d_w$, weights density')
 ax.set_ylabel(r'$d_h$, h layer density')
 plt.ylim([0, 1.05])
 plt.xlim([0, 1])
-fig.savefig(results_dir / 'fig2b.pdf', bbox_inches='tight')
+fig.savefig(results_dir / 'fig2b', bbox_inches='tight')
 plt.show()

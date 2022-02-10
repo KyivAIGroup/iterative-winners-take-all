@@ -45,7 +45,7 @@ def generate_sample(x_c, distance):
     return result
 
 
-iters = 20
+iters = 200
 
 def plot_cosine(a, a_x=20, kwta=False, color=None):
     print('new plot...')
@@ -85,7 +85,7 @@ def plot_cosine(a, a_x=20, kwta=False, color=None):
     cos_y_mean = np.mean(cos_y, axis=1)
     cos_y_std = np.std(cos_y, axis=1)
     plt.plot(cos_x, cos_y_mean,
-             label=rf'$s_y={np.mean(sy_data):.2f}$', color=color)
+             label=rf'$d_y={np.mean(sy_data):.2f}$', color=color)
     plt.fill_between(cos_x, cos_y_mean + cos_y_std, cos_y_mean - cos_y_std,
                      alpha=0.2, color=color)
 
@@ -93,7 +93,7 @@ def plot_cosine(a, a_x=20, kwta=False, color=None):
         cos_y_mean = np.mean(cos_y_kwta, axis=1)
         cos_y_std = np.std(cos_y_kwta, axis=1)
         plt.plot(cos_x, cos_y_mean,
-                 label=rf'kWTA, $s_y={KWTA_SPARSITY}$', color='#93003a')
+                 label=rf'kWTA, $d_y={KWTA_SPARSITY}$', color='#93003a')
         plt.fill_between(cos_x, cos_y_mean + cos_y_std, cos_y_mean - cos_y_std,
                          alpha=0.2, color='#93003a')
 
@@ -127,5 +127,6 @@ plt.xlabel(r'$\cos(x_1, x_2)$')
 plt.ylabel(r'$\cos(y_1, y_2)$')
 plt.legend()
 plt.title("Similarity preservation")
+plt.tight_layout()
 plt.savefig('figures/similarity_preservation')
 plt.show()
